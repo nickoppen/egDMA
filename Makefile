@@ -1,10 +1,11 @@
 
 CC = gcc
 DEFS += -DDEBUG
+ESDK=${EPIPHANY_HOME}/tools/host
 
 CCFLAGS += -g $(DEFS)
-INCS = -I. -I/usr/local/browndeer/coprthr2/include
-LIBS = -L/usr/local/browndeer/coprthr2/lib -lcoprthr -lcoprthrcc -lm -ldl
+INCS = -I. -I/usr/local/browndeer/coprthr2/include -I${ESDK}/include
+LIBS = -L/usr/local/browndeer/coprthr2/lib -lcoprthr -lcoprthrcc -lm -ldl -L${ESDK}/lib
 
 COPRCC = /usr/local/browndeer/coprthr2/bin/coprcc
 COPRCC_FLAGS = -g --info

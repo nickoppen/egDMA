@@ -4,6 +4,8 @@
 #include <coprthr_thread.h>
 #include <coprthr_mpi.h>
 
+#include "egdma.h"
+
 //#include <e-lib.h>
 
 #define ECORES 16    /// Not great - CORECOUNT is defined as the same thing in ringTopo16.c
@@ -16,6 +18,9 @@ int main(int argc, char** argv)
     char txt[10];
     int i, j;
     int * pGreyVals;
+    size_t sizeInBytes;
+
+    coprthr_mem_t eGreyVals;
 
 /// Read in the grey image information as a text file
 /// The first two lines are the dimensions of the image
@@ -37,8 +42,8 @@ int main(int argc, char** argv)
 //    printf("%s = %d\n", txt, height);
 
     /// Allocate space to store the grey scale information
-
-    greyVals = malloc(width * height * sizeof(int));
+    sizeInBytes = width * height * sizeof(int);
+    greyVals = malloc(sizeInBytes);
 
     /// read in the grey scale values
 
@@ -57,11 +62,11 @@ int main(int argc, char** argv)
 //        printf("%d;\n", inVal);
     }
 
-    for(i = 0; i < 4 * width; i++)
-    {
-        printf("%d, ", greyVals[i]);
-    }
-    printf("\n");
+//    for(i = 0; i < 4 * width; i++)
+//    {
+//        printf("%d, ", greyVals[i]);
+//    }
+//    printf("\n");
 
 
     /// Open the co processor
@@ -73,8 +78,13 @@ int main(int argc, char** argv)
         exit(0);
     }
 
+    eGreyVals = coprthr_dmalloc(dd, sizeInBytes, 0);
+    coprthr_dwrite(dd, eGreyVals, 0, (void*)greyVals, sizeInBytes, 0);
+
 
     /// tidy up
+    coprthr_dfree(dd, eGreyVals);
+    coprthr_dclose(dd);
     free(greyVals);
     exit(1);
 

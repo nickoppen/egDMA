@@ -8,7 +8,7 @@
 
 //#include <e-lib.h>
 
-#define ECORES 16    /// Not great - CORECOUNT is defined as the same thing in ringTopo16.c
+#define ECORES 16    /// Not great - Should be a function call
 
 int main(int argc, char** argv)
 {
@@ -19,8 +19,12 @@ int main(int argc, char** argv)
     int i, j;
     int * pGreyVals;
     size_t sizeInBytes;
+    int coreResults[ECORES * GREYLEVELS];
+    int combinedResults[GREYLEVELS];
+    int debug[1024];
 
     coprthr_mem_t eGreyVals;
+//    coprthr_mem_t eCoreResults;
 
 /// Read in the grey image information as a text file
 /// The first two lines are the dimensions of the image
@@ -79,8 +83,30 @@ int main(int argc, char** argv)
     }
 
     eGreyVals = coprthr_dmalloc(dd, sizeInBytes, 0);
+    printf("writing gry levels to device\n");
     coprthr_dwrite(dd, eGreyVals, 0, (void*)greyVals, sizeInBytes, 0);
+//    eCoreResults = coprthr_dmalloc(dd, (ECORES * GREYLEVELS * sizeof(int), 0); /// Output only
 
+    pass_args args;
+    args.width = width;
+    args.height = height;
+    args.g_result = (void*)coprthr_dmalloc(dd, (ECORES * GREYLEVELS * sizeof(int)), 0); /// Output only
+//    args.debug = debug;
+
+	coprthr_program_t prg = coprthr_cc_read_bin("./egdma.e32", 0);
+    coprthr_sym_t krn = coprthr_getsym(prg, "k_scan");
+    printf("calling scan\n");
+    coprthr_event_t ev = coprthr_dexec(dd, ECORES, krn, (void*)(&args), COPRTHR_E_WAIT);
+
+        printf("retrieving resutls\n");
+    coprthr_dread(dd, args.g_result, 0, (void*)coreResults, ECORES * GREYLEVELS * sizeof(int), 0);
+
+//    for(i=0;i<ECORES;i++)
+//    {
+        for (j=0;j<GREYLEVELS*4;j++)
+            printf("%d, ", coreResults[i*GREYLEVELS + j]);
+        printf("\n");
+//    }
 
     /// tidy up
     coprthr_dfree(dd, eGreyVals);

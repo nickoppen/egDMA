@@ -27,7 +27,7 @@ CL: egdma.e32
 egdma.x: egdma.o
 	$(CC) -o egdma.x egdma.o $(LIBS)
 
-egdma.e32: e_egdma.c e_egdma.h 
+egdma.e32: e_egdma.c egdma.h 
 	$(COPRCC) $(COPRCC_FLAGS) $(COPRCC_LIBS) $(COPRCC_INCS) $(COPRCC_DEFS)  -o egdma.e32 $<
 
 egdma.o: egdma.c egdma.h

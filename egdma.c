@@ -18,13 +18,14 @@ int main(int argc, char** argv)
     char txt[10];
     int i, j;
     int * pGreyVals;
+//    int * debugGrey;
     size_t sizeInBytes;
     int coreResults[ECORES * GREYLEVELS];
     int combinedResults[GREYLEVELS];
     int debug[1024];
 
     coprthr_mem_t eGreyVals;
-//    coprthr_mem_t eCoreResults;
+    coprthr_mem_t eCoreResults;
 
 /// Read in the grey image information as a text file
 /// The first two lines are the dimensions of the image
@@ -41,18 +42,16 @@ int main(int argc, char** argv)
     }
 
     fscanf(greyFile, "%s %d", txt, &width);
-//    printf("%s = %d\n", txt, width);
     fscanf(greyFile, "%s %d", txt, &height);
-//    printf("%s = %d\n", txt, height);
 
     /// Allocate space to store the grey scale information
     sizeInBytes = width * height * sizeof(int);
     greyVals = malloc(sizeInBytes);
+//    debugGrey = malloc(sizeInBytes);
 
     /// read in the grey scale values
 
     fscanf(greyFile, "%s [", txt);
-//    printf("%s \n", txt);
 
     pGreyVals = greyVals;
     for(i=0; i < height; i++)
@@ -60,18 +59,9 @@ int main(int argc, char** argv)
         for(j=0; j < width - 1; j++)
         {
             fscanf(greyFile, " %d,", pGreyVals++);
-//            printf("%d ", inVal);
         }
         fscanf(greyFile, " %d;", pGreyVals++);
-//        printf("%d;\n", inVal);
     }
-
-//    for(i = 0; i < 4 * width; i++)
-//    {
-//        printf("%d, ", greyVals[i]);
-//    }
-//    printf("\n");
-
 
     /// Open the co processor
 	int dd = coprthr_dopen(COPRTHR_DEVICE_E32,COPRTHR_O_THREAD);
@@ -83,28 +73,38 @@ int main(int argc, char** argv)
     }
 
     eGreyVals = coprthr_dmalloc(dd, sizeInBytes, 0);
-    printf("writing gry levels to device\n");
-    coprthr_dwrite(dd, eGreyVals, 0, (void*)greyVals, sizeInBytes, 0);
-//    eCoreResults = coprthr_dmalloc(dd, (ECORES * GREYLEVELS * sizeof(int), 0); /// Output only
+//    for (j=0;j<width*4;j++ ) printf("%d, ", greyVals[j]);
+//    printf("writing gry levels to device\n");
+    coprthr_dwrite(dd, eGreyVals, 0, (void*)greyVals, sizeInBytes, COPRTHR_E_WAIT);
+//    coprthr_dread( dd, eGreyVals, 0, debugGrey, sizeInBytes, COPRTHR_E_WAIT);
+//    for (j=0;j<width*4;j++ ) printf("%d, ", debugGrey[j]);
+
+    eCoreResults = coprthr_dmalloc(dd, (ECORES * GREYLEVELS * sizeof(int)), 0); /// Output only
 
     pass_args args;
     args.width = width;
     args.height = height;
-    args.g_result = (void*)coprthr_dmalloc(dd, (ECORES * GREYLEVELS * sizeof(int)), 0); /// Output only
+    args.g_result = (void*)coprthr_memptr(eCoreResults, 0);
+    args.g_greyVals = (void*)coprthr_memptr(eGreyVals, 0);
 //    args.debug = debug;
 
 	coprthr_program_t prg = coprthr_cc_read_bin("./egdma.e32", 0);
+//	printf("prog: %d\n", (int)prg);
     coprthr_sym_t krn = coprthr_getsym(prg, "k_scan");
-    printf("calling scan\n");
-    coprthr_event_t ev = coprthr_dexec(dd, ECORES, krn, (void*)(&args), COPRTHR_E_WAIT);
+    printf("calling scan: %d\n", (int)krn);
+//    coprthr_event_t ev = coprthr_dexec(dd, ECORES, krn, (void*)&args, 0);
+    coprthr_mpiexec(dd, ECORES, krn, &args, sizeof(args), 0);
+    printf("waiting\n");
 
-        printf("retrieving resutls\n");
-    coprthr_dread(dd, args.g_result, 0, (void*)coreResults, ECORES * GREYLEVELS * sizeof(int), 0);
+    coprthr_dwait(dd);
+    printf("retrieving resutls\n");
+    coprthr_dread(dd, eCoreResults, 0, coreResults, ECORES * GREYLEVELS * sizeof(int), COPRTHR_E_WAIT);
 
+    printf("writing\n");
 //    for(i=0;i<ECORES;i++)
 //    {
         for (j=0;j<GREYLEVELS*4;j++)
-            printf("%d, ", coreResults[i*GREYLEVELS + j]);
+            printf("%d, ", coreResults[j]);
         printf("\n");
 //    }
 

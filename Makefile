@@ -18,7 +18,7 @@ TARGET = egdma.x egdma.e32
 
 all: $(TARGET)
 Debug: egdma.x
-CL: egdma.e32
+COPRTHR2: egdma.e32
 
 .PHONY: clean install uninstall $(SUBDIRS)
 
@@ -40,7 +40,7 @@ cleanDebug: $(SUBDIRS)
 cleanCL: $(SUBDIRS)
 	rm -f *.e32
 
-clean: cleanDebug cleanCL
+cleanall: cleanDebug cleanCL
 distclean: clean
 
 

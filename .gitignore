@@ -1,2 +1,6 @@
 egDMA.cbp
 egDMA.layout
+egDMA_build_log.html
+egdma.o
+egdma.e32
+egdma.x

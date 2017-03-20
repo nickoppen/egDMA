@@ -103,9 +103,9 @@ int main(int argc, char** argv)
     printf("writing\n");
 //    for(i=0;i<ECORES;i++)
 //    {
-        for (j=0;j<GREYLEVELS*4;j++)
-            printf("%d, ", coreResults[j]);
-        printf("\n");
+//        for (j=0;j<GREYLEVELS*4;j++)
+//            printf("%d, ", coreResults[j]);
+//        printf("\n");
 //    }
 
     /// tidy up

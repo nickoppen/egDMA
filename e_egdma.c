@@ -42,7 +42,21 @@ void __entry k_scan(pass_args * args)
     /// where in the global buffer does it come from
     int * startLoc = args->g_greyVals + (gid * band);
 
-    e_dma_set_desc(E_DMA_0, E_DMA_DWORD | E_DMA_ENABLE | E_DMA_MASTER, 0, sizeof(int), sizeof(int), frameSize, 0, 0, 0, (void*)startLoc, (void*)A, &dmaDesc);
+    e_dma_set_desc(E_DMA_0,                                     /// channel
+                    E_DMA_WORD | E_DMA_ENABLE | E_DMA_MASTER,   /// config
+                    0,                                          /// next descriptor (there isn't one)
+                    sizeof(int),                                /// inner stride source
+                    sizeof(int),                                /// inner stride destination
+                    frameSize / sizeof(int),                    /// inner count of data items to transfer (one row)
+                    1,                                          /// outer count (1 we are doing 1D dma)
+                    0,                                          /// outer stride source
+                    0,                                          /// outer stride destination
+                    (void*)startLoc,                            /// starting location source
+                    (void*)A,                                   /// starting location destination
+                    &dmaDesc);                                  /// dma descriptor
+
+    e_dma_start(&dmaDesc, E_DMA_0);
+    e_dma_wait(E_DMA_0);
 
     /// write back the results synchronously because there is nothing else to do
     host_printf("%d: sp=%x lowOrder=%x space=%x imagesSize=%d frameSize=%d band=%d frames=%d startloc=%x\n", gid, sp_val, baseLowOrder, (sp_val - baseLowOrder), imageSize, frameSize, band, frames, startLoc);

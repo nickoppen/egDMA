@@ -8,7 +8,6 @@
 
 //#include <e-lib.h>
 
-#define ECORES 16    /// Not great - Should be a function call
 
 int main(int argc, char** argv)
 {
@@ -103,8 +102,8 @@ int main(int argc, char** argv)
     printf("writing\n");
 //    for(i=0;i<ECORES;i++)
 //    {
-//        for (j=0;j<GREYLEVELS*4;j++)
-//            printf("%d, ", coreResults[j]);
+        for (j=0;j<GREYLEVELS*4;j++)
+            printf("%d, ", coreResults[j]);
 //        printf("\n");
 //    }
 

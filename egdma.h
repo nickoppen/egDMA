@@ -1,6 +1,8 @@
 #ifndef EGDMA_H_INCLUDED
 #define EGDMA_H_INCLUDED
 
+#define ECORES 16    /// Not great - Should be a function call
+#define LASTCORENUM 15  /// the last core does the remainder at the end of the file
 #define GREYLEVELS 256
 
 typedef struct

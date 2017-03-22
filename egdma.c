@@ -15,12 +15,12 @@ int main(int argc, char** argv)
     int width, height;
     int * greyVals;     /// allocated after the width and height are know
     char txt[10];
-    int i, j;
+    int i, j, k;
     int * pGreyVals;
 //    int * debugGrey;
     size_t sizeInBytes;
     int coreResults[ECORES * GREYLEVELS];
-    int combinedResults[GREYLEVELS];
+    int combinedResults[GREYLEVELS] = { 0 };    /// set all to zero
     int debug[1024];
 
     coprthr_mem_t eGreyVals;
@@ -64,7 +64,7 @@ int main(int argc, char** argv)
 
     /// Open the co processor
 	int dd = coprthr_dopen(COPRTHR_DEVICE_E32,COPRTHR_O_THREAD);
-    printf("epiphany dev:%i\n", dd);
+//    printf("epiphany dev:%i\n", dd);
 	if (dd<0)
 	{
         printf("Device open failed.\n");
@@ -90,22 +90,35 @@ int main(int argc, char** argv)
 	coprthr_program_t prg = coprthr_cc_read_bin("./egdma.e32", 0);
 //	printf("prog: %d\n", (int)prg);
     coprthr_sym_t krn = coprthr_getsym(prg, "k_scan");
-    printf("calling scan: %d\n", (int)krn);
+//    printf("calling scan: %d\n", (int)krn);
 //    coprthr_event_t ev = coprthr_dexec(dd, ECORES, krn, (void*)&args, 0);
     coprthr_mpiexec(dd, ECORES, krn, &args, sizeof(args), 0);
-    printf("waiting\n");
+//    printf("waiting\n");
 
     coprthr_dwait(dd);
-    printf("retrieving resutls\n");
+//    printf("retrieving resutls\n");
     coprthr_dread(dd, eCoreResults, 0, coreResults, ECORES * GREYLEVELS * sizeof(int), COPRTHR_E_WAIT);
 
-    printf("writing\n");
-//    for(i=0;i<ECORES;i++)
-//    {
-        for (j=0;j<GREYLEVELS*4;j++)
-            printf("%d, ", coreResults[j]);
-//        printf("\n");
-//    }
+    k = 0;
+//    printf("writing\n");
+    for(i=0;i<ECORES;i++)
+    {
+        for (j=0;j<GREYLEVELS;j++)
+        {
+            combinedResults[j] += coreResults[k];
+            printf("%d, ", coreResults[k]);
+            if ((k) && !(k % 256))
+                printf("\n");
+            k++;
+        }
+    }
+
+//    printf("And now for the results:");
+    for (j=0;j<GREYLEVELS;j++)
+    {
+        printf("%d, ", combinedResults[j]);
+    }
+    printf("\n");
 
     /// tidy up
     coprthr_dfree(dd, eGreyVals);

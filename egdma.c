@@ -64,7 +64,6 @@ int main(int argc, char** argv)
 
     /// Open the co processor
 	int dd = coprthr_dopen(COPRTHR_DEVICE_E32,COPRTHR_O_THREAD);
-//    printf("epiphany dev:%i\n", dd);
 	if (dd<0)
 	{
         printf("Device open failed.\n");
@@ -72,11 +71,7 @@ int main(int argc, char** argv)
     }
 
     eGreyVals = coprthr_dmalloc(dd, sizeInBytes, 0);
-//    for (j=0;j<width*4;j++ ) printf("%d, ", greyVals[j]);
-//    printf("writing gry levels to device\n");
     coprthr_dwrite(dd, eGreyVals, 0, (void*)greyVals, sizeInBytes, COPRTHR_E_WAIT);
-//    coprthr_dread( dd, eGreyVals, 0, debugGrey, sizeInBytes, COPRTHR_E_WAIT);
-//    for (j=0;j<width*4;j++ ) printf("%d, ", debugGrey[j]);
 
     eCoreResults = coprthr_dmalloc(dd, (ECORES * GREYLEVELS * sizeof(int)), 0); /// Output only
 
@@ -88,35 +83,45 @@ int main(int argc, char** argv)
 //    args.debug = debug;
 
 	coprthr_program_t prg = coprthr_cc_read_bin("./egdma.e32", 0);
-//	printf("prog: %d\n", (int)prg);
     coprthr_sym_t krn = coprthr_getsym(prg, "k_scan");
-//    printf("calling scan: %d\n", (int)krn);
 //    coprthr_event_t ev = coprthr_dexec(dd, ECORES, krn, (void*)&args, 0);
     coprthr_mpiexec(dd, ECORES, krn, &args, sizeof(args), 0);
-//    printf("waiting\n");
 
     coprthr_dwait(dd);
-//    printf("retrieving resutls\n");
     coprthr_dread(dd, eCoreResults, 0, coreResults, ECORES * GREYLEVELS * sizeof(int), COPRTHR_E_WAIT);
 
+    /// testing
+    for(j=0;j<GREYLEVELS;j++)
+        printf("%d\t", j);
+    printf("\n");
+
+    for(i=0;i<height*width;i++)
+        ++combinedResults[greyVals[i]];
+    for(i=0;i<GREYLEVELS;i++)
+    {
+        printf("%d\t", combinedResults[i]);
+        combinedResults[i] = 0; /// reset
+    }
+    printf("\n\n");
+    /// end testing
+
     k = 0;
-//    printf("writing\n");
     for(i=0;i<ECORES;i++)
     {
         for (j=0;j<GREYLEVELS;j++)
         {
             combinedResults[j] += coreResults[k];
-            printf("%d, ", coreResults[k]);
+            printf("%d\t", coreResults[k]);
+            k++;
             if ((k) && !(k % 256))
                 printf("\n");
-            k++;
         }
     }
 
-//    printf("And now for the results:");
+    printf("\n\n");
     for (j=0;j<GREYLEVELS;j++)
     {
-        printf("%d, ", combinedResults[j]);
+        printf("%d\t", combinedResults[j]);
     }
     printf("\n");
 

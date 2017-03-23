@@ -102,7 +102,7 @@ int main(int argc, char** argv)
         printf("%d\t", combinedResults[i]);
         combinedResults[i] = 0; /// reset
     }
-    printf("\n\n");
+    printf("\ncore output\n");
     /// end testing
 
     k = 0;
@@ -118,7 +118,7 @@ int main(int argc, char** argv)
         }
     }
 
-    printf("\n\n");
+    printf("\ncombined core results\n");
     for (j=0;j<GREYLEVELS;j++)
     {
         printf("%d\t", combinedResults[j]);

@@ -23,12 +23,9 @@ void __entry k_scan(pass_args * args)
     /// how much space do we have
     void * baseAddr = coprthr_tls_sbrk(0);                      /// begining of free space
     uintptr_t baseLowOrder = (int)baseAddr & 0x0000FFFF;
-    unsigned int localSize = sp_val - baseLowOrder - 0x40;      /// amount of free space available in bytes   /// leave 64 bytes as a buffer
-//    localSize = 8192; // pending testing
+    unsigned int localSize = sp_val - baseLowOrder - 0x200;      /// amount of free space available in bytes   /// leave 512 bytes as a buffer
     unsigned int frameSizeBytes = localSize / 2;                /// bytes       /// a frame is the smallest processing chunk
     unsigned int frameSizeInts = frameSizeBytes / sizeof(int);  /// ints        /// the number of ints in a frame
-    host_printf("%d\t%u\t%u\t%u\t0x%x\n", gid, localSize, frameSizeBytes, frameSizeInts, baseAddr);
-//    exit(0);
     int * A = (int *)coprthr_tls_sbrk(frameSizeBytes);          /// 1st frame
     int * B = (int *)coprthr_tls_sbrk(frameSizeBytes);          /// 2nd frame
     int * beingTransferred;                                     /// A or B
@@ -39,7 +36,7 @@ void __entry k_scan(pass_args * args)
 
     /// how much data do we have to process
     unsigned int band = imageSize / ECORES;                     /// split the image up int 16 "bands" (or horizontal strips)
-    if (gid == LASTCORENUM)
+    if (gid == LASTCORENUM)                                     /// =========================== this needs checking ==========================================
         band += imageSize % ECORES;                             /// if it is not exactly divisible by 16 then add the remainder onto the workload for core 15
     unsigned int frames = band / frameSizeInts;
     unsigned int tailEndInts = band % frameSizeInts;
@@ -49,11 +46,11 @@ void __entry k_scan(pass_args * args)
     void * startLoc = args->g_greyVals + (gid * band * sizeof(int));
 
     /// debug
-    host_printf("%d\t\tspace=0x%x\tframeSize=%d\tframes=%d\tstartloc=%u\tA=x0%x\tB=0x%x\n", gid, localSize, frameSizeBytes, frames, startLoc, A, B);
+    ///host_printf("%d\t\timagesize=%u\tband=%u\tspace=0x%x\tframeSizeBytes=%d\tframeSizeInts=%u\ttaileEnd=%u\tframes=%d\tstartloc=0x%x\tA=x0%x\tB=0x%x\n", gid, imageSize, band, localSize, frameSizeBytes, frameSizeInts, tailEndInts, frames, startLoc, A, B);
 
     if(processingA)
     {
-        beingTransferred = A;        /// transfer first frame to A
+        beingTransferred = A;        /// transfer first frame to A ready for processing
         currentChannel = E_DMA_0;   /// on E_DMA_0
     }
     else
@@ -67,32 +64,29 @@ void __entry k_scan(pass_args * args)
     else
         trxCount = tailEndInts;
 
-    e_dma_set_desc(currentChannel,                                     /// channel
+    e_dma_set_desc(currentChannel,                              /// channel
                     E_DMA_WORD | E_DMA_ENABLE | E_DMA_MASTER,   /// config
                     0,                                          /// next descriptor (there isn't one)
                     sizeof(int),                                /// inner stride source
                     sizeof(int),                                /// inner stride destination
-                    trxCount,                              /// inner count of data items to transfer (one row)
+                    trxCount,                                   /// inner count of data items to transfer (one row)
                     1,                                          /// outer count (1 we are doing 1D dma)
                     0,                                          /// outer stride source N/A in 1D dma
                     0,                                          /// outer stride destination N/A in 1D dma
-                    startLoc,                                  /// starting location source
-                    (void*)beingTransferred,                                   /// starting location destination
+                    startLoc,                                   /// starting location source
+                    (void*)beingTransferred,                    /// starting location destination
                     &dmaDesc);                                  /// dma descriptor
 
-    host_printf("%d\t%d\tto 0x%x\tfrom 0x%x\n", gid, trxCount, beingTransferred, startLoc);
-
-    goto tidyUpAndExit;
-
+    ///host_printf("%d\t%d\tto 0x%x\tfrom 0x%x\n", gid, trxCount, beingTransferred, startLoc);
     e_dma_start(&dmaDesc, currentChannel);
 
     while(frames--)
     {
-        e_dma_wait(currentChannel);        /// wait for the transfer to A is complete
+        e_dma_wait(currentChannel);         /// wait for the current transfer to complete
         if(processingA)
         {
-            beingTransferred = B;        /// transfer next frame to B
-            currentChannel = E_DMA_1;   /// on E_DMA_1
+            beingTransferred = B;           /// transfer next frame to B
+            currentChannel = E_DMA_1;       /// on E_DMA_1
             beingProcessed = A;
         }
         else
@@ -109,45 +103,36 @@ void __entry k_scan(pass_args * args)
 
         startLoc += frameSizeBytes;     /// transfer the next frame
 
-        e_dma_set_desc(currentChannel,                                     /// channel
+        e_dma_set_desc(currentChannel,                              /// channel
                         E_DMA_WORD | E_DMA_ENABLE | E_DMA_MASTER,   /// config
                         0,                                          /// next descriptor (there isn't one)
                         sizeof(int),                                /// inner stride source
                         sizeof(int),                                /// inner stride destination
-                        trxCount,                              /// inner count of data items to transfer (one row)
+                        trxCount,                                   /// inner count of data items to transfer (one row)
                         1,                                          /// outer count (1 we are doing 1D dma)
                         0,                                          /// outer stride source N/A in 1D dma
                         0,                                          /// outer stride destination N/A in 1D dma
-                        startLoc,                                  /// starting location source
-                        (void*)beingTransferred,                                   /// starting location destination
+                        startLoc,                                   /// starting location source
+                        (void*)beingTransferred,                    /// starting location destination
                         &dmaDesc);                                  /// dma descriptor
 
-        host_printf("%d\t%d\tto 0x%x\tfrom 0x%x\n", gid, trxCount, beingTransferred, startLoc);
+        ///host_printf("%d\tframe=%d\t%d\tto 0x%x\tfrom 0x%x\tto 0x%x\n", gid, frames, trxCount, beingTransferred, startLoc, beingTransferred);
         e_dma_start(&dmaDesc, currentChannel);
 
-        for(i=0; i<frameSizeInts; i++)          /// onlyt the last fram will have tailEndInts to process and that is done below
+        for(i=0; i<frameSizeInts; i++)          /// only the last frame will have tailEndInts to process and that is done below
             ++greyDistribution[beingProcessed[i]];
 
-        processingA = !processingA;
+        processingA = !processingA;             /// swap buffers
     }
 
     if(tailEndInts)
     {
-        if(processingA)
-        {
-            e_dma_wait(E_DMA_0);            /// wait for the transfer to A is complete
-            for(i=0; i<tailEndInts; i++)    /// scan the remaining data
-                ++greyDistribution[A[i]];
-        }
-        else
-        {
-            e_dma_wait(E_DMA_1);
-            for(i=0; i<tailEndInts; i++)
-                ++greyDistribution[B[i]];
-        }
+        e_dma_wait(currentChannel);                         /// wait for the last transfer to complete
+        for(i=0; i<tailEndInts; i++)                        /// scan the remaining data
+            ++greyDistribution[beingTransferred[i]];        /// the last transferred frame
     }
 
-    host_printf("%d\t\tspace=0x%x\timagesSize=%d\tframeSize=%d\tband=%d\tframes=%d\tstartloc=%x\t\n", gid, localSize, imageSize, frameSizeBytes, band, frames, startLoc);
+    ///host_printf("%d\t\tspace=0x%x\timagesSize=%d\tframeSize=%d\tband=%d\tframes=%d\tstartloc=%x\t\n", gid, localSize, imageSize, frameSizeBytes, band, frames, startLoc);
 
     /// write back the results synchronously because there is nothing else to do
     e_dma_copy((args->g_result) + (gid * GREYLEVELS * sizeof(int)), (void*)greyDistribution, GREYLEVELS * sizeof(int));

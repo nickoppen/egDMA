@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <time.h>
 #include <coprthr.h>
 #include <coprthr_cc.h>
 #include <coprthr_thread.h>
@@ -49,9 +50,7 @@ int main(int argc, char** argv)
 //    debugGrey = malloc(sizeInBytes);
 
     /// read in the grey scale values
-
     fscanf(greyFile, "%s [", txt);
-
     pGreyVals = greyVals;
     for(i=0; i < height; i++)
     {
@@ -61,6 +60,32 @@ int main(int argc, char** argv)
         }
         fscanf(greyFile, " %d;", pGreyVals++);
     }
+
+    /// testing
+//    for(j=0;j<GREYLEVELS;j++)
+//        printf("%d\t", j);
+//    printf("\n");
+
+#ifdef TIMEIT
+clock_t hostTime = clock();
+#endif // TIMEIT
+    for(i=0;i<height*width;i++)
+        ++combinedResults[greyVals[i]];
+#ifdef TIMEIT
+hostTime = clock() - hostTime;
+#endif // TIMEIT
+
+    for(i=0;i<GREYLEVELS;i++)
+    {
+//        printf("%d\t", combinedResults[i]);
+        combinedResults[i] = 0; /// reset
+    }
+//    printf("\ncore output\n");
+    /// end testing
+
+#ifdef TIMEIT
+clock_t eTime = clock();
+#endif // TIMEIT
 
     /// Open the co processor
 	int dd = coprthr_dopen(COPRTHR_DEVICE_E32,COPRTHR_O_THREAD);
@@ -85,25 +110,10 @@ int main(int argc, char** argv)
 	coprthr_program_t prg = coprthr_cc_read_bin("./egdma.e32", 0);
     coprthr_sym_t krn = coprthr_getsym(prg, "k_scan");
 //    coprthr_event_t ev = coprthr_dexec(dd, ECORES, krn, (void*)&args, 0);
-    coprthr_mpiexec(dd, ECORES, krn, &args, sizeof(args), 0);
+   coprthr_mpiexec(dd, ECORES, krn, &args, sizeof(args), 0);
 
     coprthr_dwait(dd);
     coprthr_dread(dd, eCoreResults, 0, coreResults, ECORES * GREYLEVELS * sizeof(int), COPRTHR_E_WAIT);
-
-    /// testing
-    for(j=0;j<GREYLEVELS;j++)
-        printf("%d\t", j);
-    printf("\n");
-
-    for(i=0;i<height*width;i++)
-        ++combinedResults[greyVals[i]];
-    for(i=0;i<GREYLEVELS;i++)
-    {
-        printf("%d\t", combinedResults[i]);
-        combinedResults[i] = 0; /// reset
-    }
-    printf("\ncore output\n");
-    /// end testing
 
     k = 0;
     for(i=0;i<ECORES;i++)
@@ -111,19 +121,23 @@ int main(int argc, char** argv)
         for (j=0;j<GREYLEVELS;j++)
         {
             combinedResults[j] += coreResults[k];
-            printf("%d\t", coreResults[k]);
+//            printf("%d\t", coreResults[k]);
             k++;
-            if ((k) && !(k % 256))
-                printf("\n");
+//            if ((k) && !(k % 256))
+//                printf("\n");
         }
     }
+#ifdef TIMEIT
+eTime = clock() - eTime ;
+printf("The host took: %ld milliseconds. The Epiphany took: %ld milliseconds\n", hostTime, eTime);
+#endif // TIMEIT
 
-    printf("\ncombined core results\n");
-    for (j=0;j<GREYLEVELS;j++)
-    {
-        printf("%d\t", combinedResults[j]);
-    }
-    printf("\n");
+//    printf("\ncombined core results\n");
+//    for (j=0;j<GREYLEVELS;j++)
+//    {
+//        printf("%d\t", combinedResults[j]);
+//    }
+//    printf("\n");
 
     /// tidy up
     coprthr_dfree(dd, eGreyVals);

@@ -66,12 +66,12 @@ int main(int argc, char** argv)
 //        printf("%d\t", j);
 //    printf("\n");
 
-#ifdef TIMEIT
+#if TIMEIT == 1
 clock_t hostTime = clock();
 #endif // TIMEIT
     for(i=0;i<height*width;i++)
         ++combinedResults[greyVals[i]];
-#ifdef TIMEIT
+#if TIMEIT == 1
 hostTime = clock() - hostTime;
 #endif // TIMEIT
 
@@ -83,7 +83,7 @@ hostTime = clock() - hostTime;
 //    printf("\ncore output\n");
     /// end testing
 
-#ifdef TIMEIT
+#if TIMEIT == 1
 clock_t eTime = clock();
 #endif // TIMEIT
 
@@ -127,7 +127,7 @@ clock_t eTime = clock();
 //                printf("\n");
         }
     }
-#ifdef TIMEIT
+#if TIMEIT == 1
 eTime = clock() - eTime ;
 printf("The host took: %ld milliseconds. The Epiphany took: %ld milliseconds\n", hostTime, eTime);
 #endif // TIMEIT

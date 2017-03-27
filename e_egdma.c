@@ -1,14 +1,21 @@
 #include <coprthr.h>
 #include <coprthr_mpi.h>
-
+#if TIMEIT == EPIPHANY
+#include "timer.h"
+#endif // TIMEIT
 #include "esyscall.h"
-
 #include <host_stdio.h>
 
 #include "egdma.h"
 
 void __entry k_scan(pass_args * args)
 {
+#if TIMEIT == 2
+    unsigned int clkStartTicks, waitStartTicks, clkStopTicks, waitStopTicks, totalClockTicks;
+    unsigned int totalWaitTicks = 0;
+    STARTCLOCK0(clkStartTicks);
+#endif // TIMEIT
+
     unsigned int gid = coprthr_corenum();
     int greyDistribution[GREYLEVELS] = { 0 };   /// all elements set to 0
     int i;
@@ -82,7 +89,15 @@ void __entry k_scan(pass_args * args)
 
     while(frames--)
     {
+#if TIMEIT == 2
+        STARTCLOCK1(waitStartTicks);  /// e_dma_wait does not idle - it is a wait loop
+#endif // TIMEIT
         e_dma_wait(currentChannel);         /// wait for the current transfer to complete
+#if TIMEIT == 2
+        STOPCLOCK1(waitStopTicks);
+        totalWaitTicks += (waitStartTicks - waitStopTicks);
+#endif // TIMEIT
+
         if(processingA)
         {
             beingTransferred = B;           /// transfer next frame to B
@@ -140,5 +155,11 @@ void __entry k_scan(pass_args * args)
 tidyUpAndExit:
     /// tidy up
     coprthr_tls_brk(baseAddr);
+
+#if TIMEIT == 2
+    STOPCLOCK0(clkStopTicks);
+    totalClockTicks = (clkStartTicks - clkStopTicks);
+    host_printf("%d: Total Ticks: %u, working ticks: %u waiting times: %u (%0.2f%%).\n", gid, totalClockTicks, (totalClockTicks - totalWaitTicks), totalWaitTicks, ((float)(totalClockTicks - totalWaitTicks) / (float)totalClockTicks) * 100.0);
+#endif // TIMEIT
 }
 

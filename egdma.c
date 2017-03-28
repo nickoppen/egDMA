@@ -20,8 +20,12 @@ int main(int argc, char** argv)
     int * pGreyVals;
 //    int * debugGrey;
     size_t sizeInBytes;
-    int coreResults[ECORES * GREYLEVELS];
-    int combinedResults[GREYLEVELS] = { 0 };    /// set all to zero
+    unsigned int coreResults[ECORES * GREYLEVELS];
+    unsigned int combinedResults[GREYLEVELS] = { 0 };    /// set all to zero
+    unsigned int cdf_image[GREYLEVELS] = { 0 };
+    unsigned int cdf_ideal[GREYLEVELS] = { 0 };
+    unsigned int idealFreq;
+    unsigned int map[GREYLEVELS] = { 0 };
     int debug[1024];
 
     coprthr_mem_t eGreyVals;
@@ -67,14 +71,15 @@ int main(int argc, char** argv)
 //    printf("\n");
 
 #if TIMEIT == 1
-clock_t hostTime = clock();
+    clock_t hostTime = clock();
 #endif // TIMEIT
     for(i=0;i<height*width;i++)
         ++combinedResults[greyVals[i]];
 #if TIMEIT == 1
-hostTime = clock() - hostTime;
+    hostTime = clock() - hostTime;
 #endif // TIMEIT
 
+    goto  skip;
     for(i=0;i<GREYLEVELS;i++)
     {
 //        printf("%d\t", combinedResults[i]);
@@ -100,7 +105,7 @@ clock_t eTime = clock();
 
     eCoreResults = coprthr_dmalloc(dd, (ECORES * GREYLEVELS * sizeof(int)), 0); /// Output only
 
-    pass_args args;
+    scan_args args;
     args.width = width;
     args.height = height;
     args.g_result = (void*)coprthr_memptr(eCoreResults, 0);
@@ -115,6 +120,7 @@ clock_t eTime = clock();
     coprthr_dwait(dd);
     coprthr_dread(dd, eCoreResults, 0, coreResults, ECORES * GREYLEVELS * sizeof(int), COPRTHR_E_WAIT);
 
+    /// combind the individual counts from the cores
     k = 0;
     for(i=0;i<ECORES;i++)
     {
@@ -127,17 +133,49 @@ clock_t eTime = clock();
 //                printf("\n");
         }
     }
+
 #if TIMEIT == 1
-eTime = clock() - eTime ;
-printf("The host took: %ld milliseconds. The Epiphany took: %ld milliseconds\n", hostTime, eTime);
+    eTime = clock() - eTime ;
+    printf("The scan on the host took: %ld milliseconds. The Epiphany took: %ld milliseconds\n", hostTime, eTime);
 #endif // TIMEIT
 
-//    printf("\ncombined core results\n");
-//    for (j=0;j<GREYLEVELS;j++)
-//    {
-//        printf("%d\t", combinedResults[j]);
-//    }
-//    printf("\n");
+skip:
+    /// calculate the image's cumulative freq and the ideal cum freq
+    idealFreq = (width * height) / GREYLEVELS;      /// TODO: add the remainder to the middle of the ideal
+    cdf_ideal[0] = idealFreq;
+    cdf_image[0] = combinedResults[0];
+    for(j=1;j<GREYLEVELS;j++)
+    {
+        cdf_ideal[j] = cdf_ideal[j-1] + idealFreq;
+        cdf_image[j] = cdf_image[j-1] + combinedResults[j];
+    }
+
+    /// calculate the map
+    i = 0;
+    for(j=1;j<GREYLEVELS;j++)
+    {
+        while (cdf_ideal[i] > cdf_image[j])
+            i++;
+        map[j] = i;
+    }
+
+    printf("grey, cdf image, cdf_ideal, map\n");
+    for(j=0;j<GREYLEVELS;j++)
+        printf("%d\t", j);
+    printf("\n");
+    for(j=0;j<GREYLEVELS;j++)
+        printf("%u\t", cdf_image[j]);
+    printf("\n");
+    for(j=0;j<GREYLEVELS;j++)
+        printf("%u\t", cdf_ideal[j]);
+    printf("\n");
+    for(j=0;j<GREYLEVELS;j++)
+        printf("%u\t", map[j]);
+    printf("\n");
+    printf("\n");
+
+
+
 
     /// tidy up
     coprthr_dfree(dd, eGreyVals);

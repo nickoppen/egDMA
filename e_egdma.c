@@ -8,7 +8,7 @@
 
 #include "egdma.h"
 
-void __entry k_scan(pass_args * args)
+void __entry k_scan(scan_args * args)
 {
 #if TIMEIT == 2
     unsigned int clkStartTicks, waitStartTicks, clkStopTicks, waitStopTicks, totalClockTicks;
@@ -33,10 +33,10 @@ void __entry k_scan(pass_args * args)
     unsigned int localSize = sp_val - baseLowOrder - 0x200;      /// amount of free space available in bytes   /// leave 512 bytes as a buffer
     unsigned int frameSizeBytes = localSize / 2;                /// bytes       /// a frame is the smallest processing chunk
     unsigned int frameSizeInts = frameSizeBytes / sizeof(int);  /// ints        /// the number of ints in a frame
-    int * A = (int *)coprthr_tls_sbrk(frameSizeBytes);          /// 1st frame
-    int * B = (int *)coprthr_tls_sbrk(frameSizeBytes);          /// 2nd frame
-    int * beingTransferred;                                     /// A or B
-    int * beingProcessed;                                       /// B or A
+    unsigned int * A = (int *)coprthr_tls_sbrk(frameSizeBytes);          /// 1st frame
+    unsigned int * B = (int *)coprthr_tls_sbrk(frameSizeBytes);          /// 2nd frame
+    unsigned int * beingTransferred;                                     /// A or B
+    unsigned int * beingProcessed;                                       /// B or A
     e_dma_id_t  currentChannel;                                 /// E_DMA_0 or E_DMA_1
     int processingA = (gid % 2);                                /// odd numbered cores start with frame A while transferring data into B; odd numbered cores start on B
     e_dma_desc_t dmaDesc;
@@ -159,7 +159,10 @@ tidyUpAndExit:
 #if TIMEIT == 2
     STOPCLOCK0(clkStopTicks);
     totalClockTicks = (clkStartTicks - clkStopTicks);
-    host_printf("%d: Total Ticks: %u, working ticks: %u waiting times: %u (%0.2f%%).\n", gid, totalClockTicks, (totalClockTicks - totalWaitTicks), totalWaitTicks, ((float)(totalClockTicks - totalWaitTicks) / (float)totalClockTicks) * 100.0);
+    host_printf("%d: Total Ticks: %u, working ticks: %u waiting ticks: %u (%0.2f%%).\n", gid, totalClockTicks, (totalClockTicks - totalWaitTicks), totalWaitTicks, ((float)(totalClockTicks - totalWaitTicks) / (float)totalClockTicks) * 100.0);
 #endif // TIMEIT
 }
 
+void __entry k_map(map_args * pArgs)
+{
+}

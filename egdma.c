@@ -30,6 +30,7 @@ int main(int argc, char** argv)
 
     coprthr_mem_t eGreyVals;
     coprthr_mem_t eCoreResults;
+    coprthr_mem_t eMap;
 
 /// Read in the grey image information as a text file
 /// The first two lines are the dimensions of the image
@@ -105,17 +106,17 @@ clock_t eTime = clock();
 
     eCoreResults = coprthr_dmalloc(dd, (ECORES * GREYLEVELS * sizeof(int)), 0); /// Output only
 
-    scan_args args;
-    args.width = width;
-    args.height = height;
-    args.g_result = (void*)coprthr_memptr(eCoreResults, 0);
-    args.g_greyVals = (void*)coprthr_memptr(eGreyVals, 0);
-//    args.debug = debug;
+    scan_args s_args;
+    s_args.width = width;
+    s_args.height = height;
+    s_args.g_result = (void*)coprthr_memptr(eCoreResults, 0);
+    s_args.g_greyVals = (void*)coprthr_memptr(eGreyVals, 0);
+//    s_args.debug = debug;
 
 	coprthr_program_t prg = coprthr_cc_read_bin("./egdma.e32", 0);
     coprthr_sym_t krn = coprthr_getsym(prg, "k_scan");
-//    coprthr_event_t ev = coprthr_dexec(dd, ECORES, krn, (void*)&args, 0);
-   coprthr_mpiexec(dd, ECORES, krn, &args, sizeof(args), 0);
+//    coprthr_event_t ev = coprthr_dexec(dd, ECORES, krn, (void*)&s_args, 0);
+    coprthr_mpiexec(dd, ECORES, krn, &s_args, sizeof(s_args), 0);
 
     coprthr_dwait(dd);
     coprthr_dread(dd, eCoreResults, 0, coreResults, ECORES * GREYLEVELS * sizeof(int), COPRTHR_E_WAIT);
@@ -152,29 +153,48 @@ skip:
 
     /// calculate the map
     i = 0;
-    for(j=1;j<GREYLEVELS;j++)
+    for(j=0;j<GREYLEVELS;j++)
     {
-        while (cdf_ideal[i] > cdf_image[j])
+        while (cdf_image[j] > cdf_ideal[i])
             i++;
         map[j] = i;
     }
 
-    printf("grey, cdf image, cdf_ideal, map\n");
-    for(j=0;j<GREYLEVELS;j++)
-        printf("%d\t", j);
-    printf("\n");
-    for(j=0;j<GREYLEVELS;j++)
-        printf("%u\t", cdf_image[j]);
-    printf("\n");
-    for(j=0;j<GREYLEVELS;j++)
-        printf("%u\t", cdf_ideal[j]);
-    printf("\n");
+//    printf("\ngrey\t");
+//    for(j=0;j<GREYLEVELS;j++)
+//        printf("%d\t", j);
+//    printf("\nimage\t");
+//    for(j=0;j<GREYLEVELS;j++)
+//        printf("%u\t", cdf_image[j]);
+//    printf("\nideal\t");
+//    for(j=0;j<GREYLEVELS;j++)
+//        printf("%u\t", cdf_ideal[j]);
+//    printf("\nmap\t");
     for(j=0;j<GREYLEVELS;j++)
         printf("%u\t", map[j]);
     printf("\n");
     printf("\n");
 
+    eMap = coprthr_dmalloc(dd, GREYLEVELS * sizeof(unsigned int), 0);
+    coprthr_dwrite(dd, eMap, 0, (void*)map, GREYLEVELS * sizeof(unsigned int), COPRTHR_E_WAIT);
 
+    map_args m_args;
+    m_args.width = width;
+    m_args.height = height;
+    m_args.g_map = (void*)coprthr_memptr(eMap, 0);
+    m_args.g_greyVals = (void*)coprthr_memptr(eGreyVals, 0);
+//    m_args.debug = debug;
+
+    krn = coprthr_getsym(prg, "k_map");
+//    coprthr_event_t ev = coprthr_dexec(dd, ECORES, krn, (void*)&m_args, 0);
+    coprthr_mpiexec(dd, ECORES, krn, &m_args, sizeof(m_args), 0);
+
+    coprthr_dwait(dd);
+    coprthr_dread(dd, eGreyVals, 0, greyVals, GREYLEVELS * sizeof(unsigned int), COPRTHR_E_WAIT);
+
+    for(j=0;j<GREYLEVELS;j++)
+        printf("%u, ", greyVals[j]);
+    printf("\n");
 
 
     /// tidy up

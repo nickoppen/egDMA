@@ -147,10 +147,11 @@ void __entry k_scan(scan_args * args)
             ++greyDistribution[beingTransferred[i]];        /// the last transferred frame
     }
 
-    ///host_printf("%d\t\tspace=0x%x\timagesSize=%d\tframeSize=%d\tband=%d\tframes=%d\tstartloc=%x\t\n", gid, localSize, imageSize, frameSizeBytes, band, frames, startLoc);
+    //host_printf("%d\t\tspace=0x%x\timagesSize=%d\tframeSize=%d\tband=%d\tframes=%d\tstartloc=%x\t\n", gid, localSize, imageSize, frameSizeBytes, band, frames, startLoc);
 
     /// write back the results synchronously because there is nothing else to do
-    e_dma_copy((args->g_result) + (gid * GREYLEVELS * sizeof(int)), (void*)greyDistribution, GREYLEVELS * sizeof(int));
+    ///e_dma_copy((args->g_result) + (gid * GREYLEVELS * sizeof(int)), (void*)greyDistribution, GREYLEVELS * sizeof(int));
+    e_write((void*)&e_emem_config, 0, 0, (args->g_result) + (gid * GREYLEVELS * sizeof(int)), (void*)greyDistribution, GREYLEVELS * sizeof(int));
 
 tidyUpAndExit:
     /// tidy up
@@ -167,6 +168,7 @@ void __entry k_map(map_args * args)
 {
 #if TIMEIT == 4
     unsigned int clkStartTicks, waitStartTicks, clkStopTicks, waitStopTicks, totalClockTicks;
+    uint_t  eithgtBits;
     unsigned int totalWaitTicks = 0;
     STARTCLOCK0(clkStartTicks);
 #endif // TIMEIT
@@ -204,35 +206,10 @@ void __entry k_map(map_args * args)
     unsigned int trxCount;                                      /// frames or tailEndCount
 
     /// where in the global buffer does it come from
-    void * copyFrom = args->g_greyVals + (gid * band * sizeof(int));
-    void * copyTo = copyFrom;
+    void * startLoc = args->g_greyVals + (gid * band * sizeof(int));
 
     /// debug
     ///host_printf("%d\t\timagesize=%u\tband=%u\tspace=0x%x\tframeSizeBytes=%d\tframeSizeInts=%u\ttaileEnd=%u\tframes=%d\tstartloc=0x%x\tA=x0%x\tB=0x%x\n", gid, imageSize, band, localSize, frameSizeBytes, frameSizeInts, tailEndInts, frames, startLoc, A, B);
-
-    inbound = A;        /// transfer first frame to A ready for processing
-    processingA = -1;            /// and start processing it first
-
-    if(frames)
-        trxCount = frameSizeInts;
-    else
-        trxCount = tailEndInts;
-
-    e_dma_set_desc(E_DMA_0,                                     /// inbound channel on fast channel
-                    E_DMA_WORD | E_DMA_ENABLE | E_DMA_MASTER,   /// config
-                    0,                                          /// next descriptor (there isn't one)
-                    sizeof(int),                                /// inner stride source
-                    sizeof(int),                                /// inner stride destination
-                    trxCount,                                   /// inner count of data items to transfer (one row)
-                    1,                                          /// outer count (1 we are doing 1D dma)
-                    0,                                          /// outer stride source N/A in 1D dma
-                    0,                                          /// outer stride destination N/A in 1D dma
-                    copyFrom,                                   /// starting location source
-                    (void*)inbound,                    /// starting location destination
-                    &dmaDescInbound);                                  /// dma descriptor for inbound traffic
-
-    ///host_printf("%d\t%d\tto 0x%x\tfrom 0x%x\n", gid, trxCount, beingTransferred, startLoc);
-    e_dma_start(&dmaDescInbound, E_DMA_0); /// start the first inbound transfer
 
     e_dma_set_desc(E_DMA_1,                                     /// inbound channel on fast channel
                     E_DMA_WORD | E_DMA_ENABLE | E_DMA_MASTER,   /// config
@@ -250,8 +227,27 @@ void __entry k_map(map_args * args)
     ///host_printf("%d\t%d\tto 0x%x\tfrom 0x%x\n", gid, trxCount, beingTransferred, startLoc);
     e_dma_start(&dmaDescOutbound, E_DMA_1); /// start the first inbound transfer
 
+    inbound = A;        /// transfer first frame to A ready for processing
+    processingA = -1;            /// and start processing it first
+
     while(frames--)
     {
+        e_dma_set_desc(E_DMA_0,                                     /// inbound channel on fast channel
+                        E_DMA_WORD | E_DMA_ENABLE | E_DMA_MASTER,   /// config
+                        0,                                          /// next descriptor (there isn't one)
+                        sizeof(int),                                /// inner stride source
+                        sizeof(int),                                /// inner stride destination
+                        frameSizeInts,                              /// inner count of data items to transfer (one row)
+                        1,                                          /// outer count (1 we are doing 1D dma)
+                        0,                                          /// outer stride source N/A in 1D dma
+                        0,                                          /// outer stride destination N/A in 1D dma
+                        startLoc,                                   /// starting location source
+                        (void*)inbound,                    /// starting location destination
+                        &dmaDescInbound);                                  /// dma descriptor for inbound traffic
+
+        ///host_printf("%d\t%d\tto 0x%x\tfrom 0x%x\n", gid, trxCount, beingTransferred, startLoc);
+        e_dma_start(&dmaDescInbound, E_DMA_0); /// start the first inbound transfer
+
 #if TIMEIT == 4
         STARTCLOCK1(waitStartTicks);  /// e_dma_wait does not idle - it is a wait loop
 #endif // TIMEIT
@@ -275,61 +271,37 @@ void __entry k_map(map_args * args)
             outbound = B;
         }
 
-        if(frames)      /// i.e. there are  more full frames to transfer
-            trxCount = frameSizeInts;
-        else            /// there is only the tail end left
-            trxCount = tailEndInts;
-
-        copyFrom += frameSizeBytes;     /// transfer the next frame
-
-        e_dma_set_desc(E_DMA_0,                                     /// inbound channel on fast channel
-                        E_DMA_WORD | E_DMA_ENABLE | E_DMA_MASTER,   /// config
-                        0,                                          /// next descriptor (there isn't one)
-                        sizeof(int),                                /// inner stride source
-                        sizeof(int),                                /// inner stride destination
-                        trxCount,                                   /// inner count of data items to transfer (one row)
-                        1,                                          /// outer count (1 we are doing 1D dma)
-                        0,                                          /// outer stride source N/A in 1D dma
-                        0,                                          /// outer stride destination N/A in 1D dma
-                        copyFrom,                                   /// starting location source
-                        (void*)inbound,                    /// starting location destination
-                        &dmaDescInbound);                                  /// dma descriptor for inbound traffic
-
-        ///host_printf("%d\t%d\tto 0x%x\tfrom 0x%x\n", gid, trxCount, beingTransferred, startLoc);
-        e_dma_start(&dmaDescInbound, E_DMA_0); /// start the first inbound transfer
-
         e_dma_wait(E_DMA_1);            /// wait til the previous copy bakc has finished before starting the next one
-
         e_dma_set_desc(E_DMA_1,                                     /// inbound channel on fast channel
                         E_DMA_WORD | E_DMA_ENABLE | E_DMA_MASTER,   /// config
                         0,                                          /// next descriptor (there isn't one)
                         sizeof(int),                                /// inner stride source
                         sizeof(int),                                /// inner stride destination
-                        GREYLEVELS,                                 /// inner count of data items to transfer (one row)
+                        frameSizeInts,                              /// inner count of data items to transfer (one row)
                         1,                                          /// outer count (1 we are doing 1D dma)
                         0,                                          /// outer stride source N/A in 1D dma
                         0,                                          /// outer stride destination N/A in 1D dma
-                        outbound,                                /// starting location source
-                        copyTo,                                 /// starting location destination
+                        outbound,                                   /// starting location source
+                        startLoc,                                     /// starting location destination
                         &dmaDescOutbound);                          /// dma descriptor for outbound traffic bu use it for transferring the map for now
 
         ///host_printf("%d\t%d\tto 0x%x\tfrom 0x%x\n", gid, trxCount, beingTransferred, startLoc);
         e_dma_start(&dmaDescOutbound, E_DMA_1); /// start the first inbound transfer
+
+        startLoc += frameSizeBytes;     /// transfer the next frame
 
         processingA = !processingA;             /// swap buffers
     }
 
     if(tailEndInts)
     {
-        e_dma_wait(E_DMA_0);                         /// wait for the last transfer to complete
-        for(i=0; i<tailEndInts; i++)                        /// scan the remaining data
-            inbound[i] = map[inbound[i]];             /// replace the grey value in the image with it's mapped value
+        e_dma_copy((void*)inbound, startLoc, tailEndInts * sizeof(int));        /// copy int the tail end values
+        for(i=0; i<tailEndInts; i++)                                            /// scan the remaining data
+            inbound[i] = map[inbound[i]];
+        e_dma_copy(startLoc, (void*)inbound, tailEndInts * sizeof(int));        /// copy back the results using E_DMA_0 because it is faster and there is nothing else left to do
     }
+    e_dma_wait(E_DMA_1);    /// make sure the last outbound transfer on DMA_1 is complete before exiting
 
-    ///host_printf("%d\t\tspace=0x%x\timagesSize=%d\tframeSize=%d\tband=%d\tframes=%d\tstartloc=%x\t\n", gid, localSize, imageSize, frameSizeBytes, band, frames, startLoc);
-
-    /// write back the results synchronously because there is nothing else to do
-    e_dma_copy(copyTo, (void*)inbound, tailEndInts * sizeof(int));
 
 tidyUpAndExit:
     /// tidy up

@@ -80,7 +80,7 @@ int main(int argc, char** argv)
     hostTime = clock() - hostTime;
 #endif // TIMEIT
 
-    goto  skip;
+//    goto  calcCumFreq;
     for(i=0;i<GREYLEVELS;i++)
     {
 //        printf("%d\t", combinedResults[i]);
@@ -134,13 +134,20 @@ clock_t eTime = clock();
 //                printf("\n");
         }
     }
+    printf("\ngrey\t");
+    for(j=0;j<GREYLEVELS;j++)
+        printf("%d\t", j);
+    printf("\neFreq\t");
+    for(j=0;j<GREYLEVELS;j++)
+        printf("%u\t", combinedResults[j]);
+    printf("\n");
 
 #if TIMEIT == 1
     eTime = clock() - eTime ;
     printf("The scan on the host took: %ld milliseconds. The Epiphany took: %ld milliseconds\n", hostTime, eTime);
 #endif // TIMEIT
 
-skip:
+calcCumFreq:
     /// calculate the image's cumulative freq and the ideal cum freq
     idealFreq = (width * height) / GREYLEVELS;      /// TODO: add the remainder to the middle of the ideal
     cdf_ideal[0] = idealFreq;
@@ -160,16 +167,16 @@ skip:
         map[j] = i;
     }
 
-//    printf("\ngrey\t");
-//    for(j=0;j<GREYLEVELS;j++)
-//        printf("%d\t", j);
-//    printf("\nimage\t");
-//    for(j=0;j<GREYLEVELS;j++)
-//        printf("%u\t", cdf_image[j]);
-//    printf("\nideal\t");
-//    for(j=0;j<GREYLEVELS;j++)
-//        printf("%u\t", cdf_ideal[j]);
-//    printf("\nmap\t");
+    printf("\ngrey\t");
+    for(j=0;j<GREYLEVELS;j++)
+        printf("%d\t", j);
+    printf("\nimage\t");
+    for(j=0;j<GREYLEVELS;j++)
+        printf("%u\t", cdf_image[j]);
+    printf("\nideal\t");
+    for(j=0;j<GREYLEVELS;j++)
+        printf("%u\t", cdf_ideal[j]);
+    printf("\nmap\t");
     for(j=0;j<GREYLEVELS;j++)
         printf("%u\t", map[j]);
     printf("\n");

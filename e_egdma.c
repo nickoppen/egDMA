@@ -8,7 +8,11 @@
 
 #include "egdma.h"
 
-void __entry k_scan(scan_args * args)
+/// debug
+void * gmap;
+void * ggrey;
+
+/*void __entry k_scan(scan_args * args)
 {
 #if TIMEIT == 2
     unsigned int clkStartTicks, waitStartTicks, clkStopTicks, waitStopTicks, totalClockTicks;
@@ -150,8 +154,10 @@ void __entry k_scan(scan_args * args)
     //host_printf("%d\t\tspace=0x%x\timagesSize=%d\tframeSize=%d\tband=%d\tframes=%d\tstartloc=%x\t\n", gid, localSize, imageSize, frameSizeBytes, band, frames, startLoc);
 
     /// write back the results synchronously because there is nothing else to do
-    ///e_dma_copy((args->g_result) + (gid * GREYLEVELS * sizeof(int)), (void*)greyDistribution, GREYLEVELS * sizeof(int));
-    e_write((void*)&e_emem_config, 0, 0, (args->g_result) + (gid * GREYLEVELS * sizeof(int)), (void*)greyDistribution, GREYLEVELS * sizeof(int));
+    //unsigned int writeTo = (args->g_result) + (gid * GREYLEVELS * sizeof(int));
+    //host_printf("%d\t%x\n", gid, writeTo);
+    e_dma_copy((args->g_result) + (gid * GREYLEVELS * sizeof(int)), (void*)greyDistribution, GREYLEVELS * sizeof(int));
+    //e_write((void*)&e_emem_config, 0, 0, (args->g_result) + (gid * GREYLEVELS * sizeof(int)), (void*)greyDistribution, GREYLEVELS * sizeof(int));
 
 tidyUpAndExit:
     /// tidy up
@@ -163,17 +169,19 @@ tidyUpAndExit:
     host_printf("%d: Total Ticks: %u, working ticks: %u waiting ticks: %u (%0.2f%%).\n", gid, totalClockTicks, (totalClockTicks - totalWaitTicks), totalWaitTicks, ((float)(totalClockTicks - totalWaitTicks) / (float)totalClockTicks) * 100.0);
 #endif // TIMEIT
 }
-
+*/
 void __entry k_map(map_args * args)
 {
+    gmap = args->g_map;
+    ggrey = args->g_greyVals;
 #if TIMEIT == 4
     unsigned int clkStartTicks, waitStartTicks, clkStopTicks, waitStopTicks, totalClockTicks;
     uint_t  eithgtBits;
     unsigned int totalWaitTicks = 0;
     STARTCLOCK0(clkStartTicks);
 #endif // TIMEIT
-
     unsigned int gid = coprthr_corenum();
+    host_printf("%d\t starting\n",gid);
     int i;
 
     register uintptr_t sp_val;      /// Thanks jar
@@ -209,7 +217,7 @@ void __entry k_map(map_args * args)
     void * startLoc = args->g_greyVals + (gid * band * sizeof(int));
 
     /// debug
-    ///host_printf("%d\t\timagesize=%u\tband=%u\tspace=0x%x\tframeSizeBytes=%d\tframeSizeInts=%u\ttaileEnd=%u\tframes=%d\tstartloc=0x%x\tA=x0%x\tB=0x%x\n", gid, imageSize, band, localSize, frameSizeBytes, frameSizeInts, tailEndInts, frames, startLoc, A, B);
+    host_printf("%d\t\timagesize=%u\tband=%u\tspace=0x%x\tframeSizeBytes=%d\tframeSizeInts=%u\ttaileEnd=%u\tframes=%d\tstartloc=0x%x\tA=x0%x\tB=0x%x\n", gid, imageSize, band, localSize, frameSizeBytes, frameSizeInts, tailEndInts, frames, startLoc, A, B);
 
     e_dma_set_desc(E_DMA_1,                                     /// inbound channel on fast channel
                     E_DMA_WORD | E_DMA_ENABLE | E_DMA_MASTER,   /// config
@@ -224,8 +232,9 @@ void __entry k_map(map_args * args)
                     (void*)map,                                 /// starting location destination
                     &dmaDescOutbound);                          /// dma descriptor for outbound traffic bu use it for transferring the map for now
 
-    ///host_printf("%d\t%d\tto 0x%x\tfrom 0x%x\n", gid, trxCount, beingTransferred, startLoc);
+    host_printf("%d\tfrom 0x%x\tto 0x%x\n", gid, args->g_map, map);
     e_dma_start(&dmaDescOutbound, E_DMA_1); /// start the first inbound transfer
+    e_dma_wait(E_DMA_1);
 
     inbound = A;        /// transfer first frame to A ready for processing
     processingA = -1;            /// and start processing it first
@@ -247,15 +256,16 @@ void __entry k_map(map_args * args)
 
         ///host_printf("%d\t%d\tto 0x%x\tfrom 0x%x\n", gid, trxCount, beingTransferred, startLoc);
         e_dma_start(&dmaDescInbound, E_DMA_0); /// start the first inbound transfer
+        host_printf("%d: %u inbound to %x\n", gid, frameSizeInts, inbound);
 
-#if TIMEIT == 4
-        STARTCLOCK1(waitStartTicks);  /// e_dma_wait does not idle - it is a wait loop
-#endif // TIMEIT
+//#if TIMEIT == 4
+//        STARTCLOCK1(waitStartTicks);  /// e_dma_wait does not idle - it is a wait loop
+//#endif // TIMEIT
         e_dma_wait(E_DMA_0);
-#if TIMEIT == 4
-        STOPCLOCK1(waitStopTicks);
-        totalWaitTicks += (waitStartTicks - waitStopTicks);
-#endif // TIMEIT
+//#if TIMEIT == 4
+//        STOPCLOCK1(waitStopTicks);
+//        totalWaitTicks += (waitStartTicks - waitStopTicks);
+//#endif // TIMEIT
 
         for(i=0; i<frameSizeInts; i++)          /// only the last frame will have tailEndInts to process and that is done below
             inbound[i] = map[inbound[i]];             /// replace the grey value in the image with it's mapped value
@@ -285,8 +295,8 @@ void __entry k_map(map_args * args)
                         startLoc,                                     /// starting location destination
                         &dmaDescOutbound);                          /// dma descriptor for outbound traffic bu use it for transferring the map for now
 
-        ///host_printf("%d\t%d\tto 0x%x\tfrom 0x%x\n", gid, trxCount, beingTransferred, startLoc);
         e_dma_start(&dmaDescOutbound, E_DMA_1); /// start the first inbound transfer
+        host_printf("%d\t%u\t to 0x%x\tfrom 0x%x\n", gid, frameSizeInts, outbound, startLoc);
 
         startLoc += frameSizeBytes;     /// transfer the next frame
 
@@ -296,9 +306,11 @@ void __entry k_map(map_args * args)
     if(tailEndInts)
     {
         e_dma_copy((void*)inbound, startLoc, tailEndInts * sizeof(int));        /// copy int the tail end values
+        host_printf("%d\t%u inbound to 0x%x", gid, tailEndInts, inbound);
         for(i=0; i<tailEndInts; i++)                                            /// scan the remaining data
             inbound[i] = map[inbound[i]];
         e_dma_copy(startLoc, (void*)inbound, tailEndInts * sizeof(int));        /// copy back the results using E_DMA_0 because it is faster and there is nothing else left to do
+        host_printf("%d\t%u outbound from 0x%x", gid, tailEndInts, inbound);
     }
     e_dma_wait(E_DMA_1);    /// make sure the last outbound transfer on DMA_1 is complete before exiting
 

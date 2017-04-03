@@ -13,19 +13,22 @@
 int main(int argc, char** argv)
 {
 
-    int width, height;
-    int * greyVals;     /// allocated after the width and height are know
-    char txt[10];
+    int width, height;                                  /// the dimensions of the image
+    int * greyVals;                                     /// allocated after the width and height are know
+    int * equalGrey;                                    /// the equalised grey values
+    int * pGreyVals;                                    /// an index into the greyVals table
+    char txt[10];                                       /// text input buffer
     int i, j, k;
-    int * pGreyVals;
-//    int * debugGrey;
+
     size_t sizeInBytes;
-    unsigned int coreResults[ECORES * GREYLEVELS];
-    unsigned int combinedResults[GREYLEVELS] = { 0 };    /// set all to zero
-    unsigned int cdf_image[GREYLEVELS] = { 0 };
-    unsigned int cdf_ideal[GREYLEVELS] = { 0 };
-    unsigned int idealFreq;
-    unsigned int map[GREYLEVELS] = { 0 };
+    unsigned int coreResults[ECORES * GREYLEVELS];      /// the results calculated but the cores
+    unsigned int combinedResults[GREYLEVELS] = { 0 };   /// the combinded core results (set all to zero)
+    unsigned int cdf_image[GREYLEVELS] = { 0 };         /// the cumulative distribution of grey levels in the image
+    unsigned int cdf_ideal[GREYLEVELS] = { 0 };         /// the ideal (evenly distributed) grey levels
+    unsigned int idealFreq;                             /// the ideal number of pixels of each grey level
+    unsigned int map[GREYLEVELS] = { 0 };               /// the translation map of existing grey levels (the index) to the ideal level (the value)
+    unsigned int mapcpy[GREYLEVELS] = { 0 };//testing
+    size_t sizeOfMap;
     int debug[1024];
 
     coprthr_mem_t eGreyVals;
@@ -65,6 +68,7 @@ int main(int argc, char** argv)
         }
         fscanf(greyFile, " %d;", pGreyVals++);
     }
+    close(greyFile);
 
     /// testing
 //    for(j=0;j<GREYLEVELS;j++)
@@ -80,12 +84,11 @@ int main(int argc, char** argv)
     hostTime = clock() - hostTime;
 #endif // TIMEIT
 
-//    goto  calcCumFreq;
-    for(i=0;i<GREYLEVELS;i++)
-    {
+//    for(i=0;i<GREYLEVELS;i++)
+//    {
 //        printf("%d\t", combinedResults[i]);
-        combinedResults[i] = 0; /// reset
-    }
+//        combinedResults[i] = 0; /// reset
+//    }
 //    printf("\ncore output\n");
     /// end testing
 
@@ -94,7 +97,7 @@ clock_t eTime = clock();
 #endif // TIMEIT
 
     /// Open the co processor
-	int dd = coprthr_dopen(COPRTHR_DEVICE_E32,COPRTHR_O_THREAD);
+    int dd = coprthr_dopen(COPRTHR_DEVICE_E32,COPRTHR_O_THREAD);
 	if (dd<0)
 	{
         printf("Device open failed.\n");
@@ -104,6 +107,7 @@ clock_t eTime = clock();
     eGreyVals = coprthr_dmalloc(dd, sizeInBytes, 0);
     coprthr_dwrite(dd, eGreyVals, 0, (void*)greyVals, sizeInBytes, COPRTHR_E_WAIT);
 
+goto  calcCumFreq;      /// testing
     eCoreResults = coprthr_dmalloc(dd, (ECORES * GREYLEVELS * sizeof(int)), 0); /// Output only
 
     scan_args s_args;
@@ -134,13 +138,13 @@ clock_t eTime = clock();
 //                printf("\n");
         }
     }
-    printf("\ngrey\t");
-    for(j=0;j<GREYLEVELS;j++)
-        printf("%d\t", j);
-    printf("\neFreq\t");
-    for(j=0;j<GREYLEVELS;j++)
-        printf("%u\t", combinedResults[j]);
-    printf("\n");
+//    printf("\ngrey\t");
+//    for(j=0;j<GREYLEVELS;j++)
+//        printf("%d\t", j);
+//    printf("\neFreq\t");
+//    for(j=0;j<GREYLEVELS;j++)
+//        printf("%u\t", combinedResults[j]);
+//    printf("\n");
 
 #if TIMEIT == 1
     eTime = clock() - eTime ;
@@ -162,7 +166,7 @@ calcCumFreq:
     i = 0;
     for(j=0;j<GREYLEVELS;j++)
     {
-        while (cdf_image[j] > cdf_ideal[i])
+        while ((cdf_image[j] > cdf_ideal[i]) && (i < 256))
             i++;
         map[j] = i;
     }
@@ -180,32 +184,46 @@ calcCumFreq:
     for(j=0;j<GREYLEVELS;j++)
         printf("%u\t", map[j]);
     printf("\n");
-    printf("\n");
+    printf("\n"); fflush(stdout);
 
-    eMap = coprthr_dmalloc(dd, GREYLEVELS * sizeof(unsigned int), 0);
-    coprthr_dwrite(dd, eMap, 0, (void*)map, GREYLEVELS * sizeof(unsigned int), COPRTHR_E_WAIT);
+//goto tidyUpAndExit;
 
+    sizeOfMap = GREYLEVELS * sizeof(int);
+    printf("malloc %d\t", (int)sizeOfMap); fflush(stdout);
+    eMap = coprthr_dmalloc(dd, sizeOfMap, 0);
+    printf("dwrite\t"); fflush(stdout);
+    coprthr_dwrite(dd, eMap, 0, (void*)map, sizeOfMap, COPRTHR_E_WAIT);
+
+    printf("adding params\t"); fflush(stdout);
     map_args m_args;
     m_args.width = width;
     m_args.height = height;
     m_args.g_map = (void*)coprthr_memptr(eMap, 0);
     m_args.g_greyVals = (void*)coprthr_memptr(eGreyVals, 0);
-//    m_args.debug = debug;
 
+	prg = coprthr_cc_read_bin("./egdma.e32", 0);
+printf("getsym from prog: 0x%x\n", (unsigned int)prg); fflush(stdout);
     krn = coprthr_getsym(prg, "k_map");
 //    coprthr_event_t ev = coprthr_dexec(dd, ECORES, krn, (void*)&m_args, 0);
+printf("calling dd:%u\t cores:%d\tkrn:0x%x\tmap: 0x%x\tsize:%d\n", dd, ECORES, (unsigned int)krn, (unsigned int)m_args.g_map, sizeof(m_args)); fflush(stdout);
     coprthr_mpiexec(dd, ECORES, krn, &m_args, sizeof(m_args), 0);
 
+printf("waiting map\t"); fflush(stdout);
     coprthr_dwait(dd);
-    coprthr_dread(dd, eGreyVals, 0, greyVals, GREYLEVELS * sizeof(unsigned int), COPRTHR_E_WAIT);
+    equalGrey = malloc(sizeInBytes);
+printf("readling\t"); fflush(stdout);
+    coprthr_dread(dd, eGreyVals, 0, (void*)equalGrey, sizeInBytes, COPRTHR_E_WAIT);
 
+    printf("\nnew\t");
     for(j=0;j<GREYLEVELS;j++)
-        printf("%u, ", greyVals[j]);
-    printf("\n");
+        printf("%u, ", equalGrey[j]);
+    printf("\n");   fflush(stdout);
 
 
     /// tidy up
+tidyUpAndExit:
     coprthr_dfree(dd, eGreyVals);
+    coprthr_dfree(dd, eMap);
     coprthr_dclose(dd);
     free(greyVals);
     exit(1);

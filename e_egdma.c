@@ -8,10 +8,6 @@
 
 #include "egdma.h"
 
-/// debug
-void * gmap;
-void * ggrey;
-
 /*void __entry k_scan(scan_args * args)
 {
 #if TIMEIT == 2
@@ -172,16 +168,12 @@ tidyUpAndExit:
 */
 void __entry k_map(map_args * args)
 {
-    gmap = args->g_map;
-    ggrey = args->g_greyVals;
 #if TIMEIT == 4
     unsigned int clkStartTicks, waitStartTicks, clkStopTicks, waitStopTicks, totalClockTicks;
-    uint_t  eithgtBits;
     unsigned int totalWaitTicks = 0;
     STARTCLOCK0(clkStartTicks);
 #endif // TIMEIT
     unsigned int gid = coprthr_corenum();
-    host_printf("%d\t starting\n",gid);
     int i;
 
     register uintptr_t sp_val;      /// Thanks jar
@@ -192,6 +184,7 @@ void __entry k_map(map_args * args)
 
     /// how much space do we have
     unsigned int map[GREYLEVELS];                               /// local storage for the grey scale map
+    uint8_t  map8;
     void * baseAddr = coprthr_tls_sbrk(0);                      /// begining of free space
     uintptr_t baseLowOrder = (int)baseAddr & 0x0000FFFF;
     unsigned int localSize = sp_val - baseLowOrder - 0x200;      /// amount of free space available in bytes   /// leave 512 bytes as a buffer
@@ -217,7 +210,7 @@ void __entry k_map(map_args * args)
     void * startLoc = args->g_greyVals + (gid * band * sizeof(int));
 
     /// debug
-    host_printf("%d\t\timagesize=%u\tband=%u\tspace=0x%x\tframeSizeBytes=%d\tframeSizeInts=%u\ttaileEnd=%u\tframes=%d\tstartloc=0x%x\tA=x0%x\tB=0x%x\n", gid, imageSize, band, localSize, frameSizeBytes, frameSizeInts, tailEndInts, frames, startLoc, A, B);
+    //host_printf("%d\t\timagesize=%u\tband=%u\tspace=0x%x\tframeSizeBytes=%d\tframeSizeInts=%u\ttaileEnd=%u\tframes=%d\tstartloc=0x%x\tA=x0%x\tB=0x%x\n", gid, imageSize, band, localSize, frameSizeBytes, frameSizeInts, tailEndInts, frames, startLoc, A, B);
 
     e_dma_set_desc(E_DMA_1,                                     /// inbound channel on fast channel
                     E_DMA_WORD | E_DMA_ENABLE | E_DMA_MASTER,   /// config
@@ -232,7 +225,7 @@ void __entry k_map(map_args * args)
                     (void*)map,                                 /// starting location destination
                     &dmaDescOutbound);                          /// dma descriptor for outbound traffic bu use it for transferring the map for now
 
-    host_printf("%d\tfrom 0x%x\tto 0x%x\n", gid, args->g_map, map);
+    //host_printf("%d\tfrom 0x%x\tto 0x%x\n", gid, args->g_map, map);
     e_dma_start(&dmaDescOutbound, E_DMA_1); /// start the first inbound transfer
     e_dma_wait(E_DMA_1);
 
@@ -256,7 +249,7 @@ void __entry k_map(map_args * args)
 
         ///host_printf("%d\t%d\tto 0x%x\tfrom 0x%x\n", gid, trxCount, beingTransferred, startLoc);
         e_dma_start(&dmaDescInbound, E_DMA_0); /// start the first inbound transfer
-        host_printf("%d: %u inbound to %x\n", gid, frameSizeInts, inbound);
+        //host_printf("%d: %u inbound to %x\n", gid, frameSizeInts, inbound);
 
 //#if TIMEIT == 4
 //        STARTCLOCK1(waitStartTicks);  /// e_dma_wait does not idle - it is a wait loop
@@ -296,7 +289,7 @@ void __entry k_map(map_args * args)
                         &dmaDescOutbound);                          /// dma descriptor for outbound traffic bu use it for transferring the map for now
 
         e_dma_start(&dmaDescOutbound, E_DMA_1); /// start the first inbound transfer
-        host_printf("%d\t%u\t to 0x%x\tfrom 0x%x\n", gid, frameSizeInts, outbound, startLoc);
+        //host_printf("%d\t%u\t to 0x%x\tfrom 0x%x\n", gid, frameSizeInts, outbound, startLoc);
 
         startLoc += frameSizeBytes;     /// transfer the next frame
 
@@ -306,11 +299,11 @@ void __entry k_map(map_args * args)
     if(tailEndInts)
     {
         e_dma_copy((void*)inbound, startLoc, tailEndInts * sizeof(int));        /// copy int the tail end values
-        host_printf("%d\t%u inbound to 0x%x", gid, tailEndInts, inbound);
+        //host_printf("%d\t%u inbound to 0x%x", gid, tailEndInts, inbound);
         for(i=0; i<tailEndInts; i++)                                            /// scan the remaining data
             inbound[i] = map[inbound[i]];
         e_dma_copy(startLoc, (void*)inbound, tailEndInts * sizeof(int));        /// copy back the results using E_DMA_0 because it is faster and there is nothing else left to do
-        host_printf("%d\t%u outbound from 0x%x", gid, tailEndInts, inbound);
+        //host_printf("%d\t%u outbound from 0x%x", gid, tailEndInts, inbound);
     }
     e_dma_wait(E_DMA_1);    /// make sure the last outbound transfer on DMA_1 is complete before exiting
 

@@ -79,8 +79,8 @@ int main(int argc, char** argv)
 #if TIMEIT == 1
     clock_t hostTime = clock();
 #endif // TIMEIT
-    for(i=0;i<height*width;i++)
-        ++combinedResults[greyVals[i]];
+//    for(i=0;i<height*width;i++)
+//        ++combinedResults[greyVals[i]];
 #if TIMEIT == 1
     hostTime = clock() - hostTime;
 #endif // TIMEIT
@@ -108,7 +108,7 @@ clock_t eTime = clock();
     eGreyVals = coprthr_dmalloc(dd, sizeInBytes, 0);
     coprthr_dwrite(dd, eGreyVals, 0, (void*)greyVals, sizeInBytes, COPRTHR_E_WAIT);
 
-goto  calcCumFreq;      /// testing
+//goto  calcCumFreq;      /// testing
     eCoreResults = coprthr_dmalloc(dd, (ECORES * GREYLEVELS * sizeof(int)), 0); /// Output only
 
     scan_args s_args;
@@ -118,7 +118,7 @@ goto  calcCumFreq;      /// testing
     s_args.g_greyVals = (void*)coprthr_memptr(eGreyVals, 0);
 //    s_args.debug = debug;
 
-	coprthr_program_t prg = coprthr_cc_read_bin("./egdma.e32", 0);
+	coprthr_program_t prg = coprthr_cc_read_bin("./egdmaScan.e32", 0);
     coprthr_sym_t krn = coprthr_getsym(prg, "k_scan");
 //    coprthr_event_t ev = coprthr_dexec(dd, ECORES, krn, (void*)&s_args, 0);
     coprthr_mpiexec(dd, ECORES, krn, &s_args, sizeof(s_args), 0);
@@ -202,7 +202,7 @@ calcCumFreq:
     m_args.g_map = (void*)coprthr_memptr(eMap, 0);
     m_args.g_greyVals = (void*)coprthr_memptr(eGreyVals, 0);
 
-	prg = coprthr_cc_read_bin("./egdma.e32", 0);            /// still needed
+	prg = coprthr_cc_read_bin("./egdmaMap.e32", 0);            /// still needed
 //printf("getsym from prog: 0x%x\n", (unsigned int)prg); fflush(stdout);
     krn = coprthr_getsym(prg, "k_map");
 //    coprthr_event_t ev = coprthr_dexec(dd, ECORES, krn, (void*)&m_args, 0);

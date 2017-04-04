@@ -16,6 +16,7 @@ void __entry k_map(map_args * args)
     STARTCLOCK0(clkStartTicks);
 #endif // TIMEIT
     unsigned int gid = coprthr_corenum();
+    host_printf("%d: in Map\n", gid);
     int i;
 
     register uintptr_t sp_val;      /// Thanks jar

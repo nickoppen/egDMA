@@ -19,6 +19,7 @@ void __entry k_scan(scan_args * args)
     unsigned int gid = coprthr_corenum();
     int greyDistribution[GREYLEVELS] = { 0 };   /// all elements set to 0
     int i;
+    host_printf("%d: in Scan\n", gid);
 
     register uintptr_t sp_val;      /// Thanks jar
     __asm__ __volatile__(

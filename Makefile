@@ -14,7 +14,7 @@ COPRCC_INCS = $(INCS)
 COPRCC_LIBS = -L/usr/local/browndeer/coprthr2/lib \
 	-lcoprthr_hostcall -lcoprthr_mpi -lcoprthr2_dev -lesyscall
 
-TARGET = egdma.x egdma.e32
+TARGET = egdma.x egdmaScan.e32 egdmaMap.e32
 
 all: $(TARGET)
 Debug: egdma.x
@@ -27,8 +27,11 @@ COPRTHR2: egdma.e32
 egdma.x: egdma.o
 	$(CC) -o egdma.x egdma.o $(LIBS)
 
-egdma.e32: e_egdma.c egdma.h  timer.h
-	$(COPRCC) $(COPRCC_FLAGS) $(COPRCC_LIBS) $(COPRCC_INCS) $(COPRCC_DEFS)  -o egdma.e32 $<
+egdmaScan.e32: e_egdmaScan.c egdma.h  timer.h
+	$(COPRCC) $(COPRCC_FLAGS) $(COPRCC_LIBS) $(COPRCC_INCS) $(COPRCC_DEFS)  -o egdmaScan.e32 $<
+
+egdmaMap.e32: e_egdmaMap.c egdma.h  timer.h
+	$(COPRCC) $(COPRCC_FLAGS) $(COPRCC_LIBS) $(COPRCC_INCS) $(COPRCC_DEFS)  -o egdmaMap.e32 $<
 
 egdma.o: egdma.c egdma.h timer.h
 	$(CC) $(CCFLAGS) $(INCS) -c egdma.c -o egdma.o

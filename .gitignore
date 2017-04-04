@@ -5,3 +5,5 @@ egdma.o
 egdma.e32
 egdma.x
 out.txt
+egdmaMap.e32
+egdmaScan.e32

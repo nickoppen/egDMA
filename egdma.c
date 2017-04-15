@@ -14,10 +14,11 @@ int main(int argc, char** argv)
 {
 
     int width, height;                                  /// the dimensions of the image
-    int * greyVals;                                     /// allocated after the width and height are know
-    int * equalGrey;                                    /// the equalised grey values
-    int * pGreyVals;                                    /// an index into the greyVals table
+    uint8_t * greyVals;                                 /// allocated after the width and height are know
+    uint8_t * equalGrey;                                /// the equalised grey values
+    uint8_t * pGreyVals;                                /// an index into the greyVals table
     char txt[10];                                       /// text input buffer
+    int newVal;                                         /// integer input buffer
     int i, j, k;
 
     size_t sizeInBytes;
@@ -26,8 +27,8 @@ int main(int argc, char** argv)
     unsigned int cdf_image[GREYLEVELS] = { 0 };         /// the cumulative distribution of grey levels in the image
     unsigned int cdf_ideal[GREYLEVELS] = { 0 };         /// the ideal (evenly distributed) grey levels
     unsigned int idealFreq;                             /// the ideal number of pixels of each grey level
-    unsigned int map[GREYLEVELS] = { 0 };               /// the translation map of existing grey levels (the index) to the ideal level (the value)
-    unsigned int mapcpy[GREYLEVELS] = { 0 };//testing
+    uint8_t      map[GREYLEVELS] = { 0 };               /// the translation map of existing grey levels (the index) to the ideal level (the value)
+//    uint8_t      mapcpy[GREYLEVELS] = { 0 };//testing
     size_t sizeOfMap;
     int debug[1024];
     uint8_t test;
@@ -54,7 +55,7 @@ int main(int argc, char** argv)
     fscanf(greyFile, "%s %d", txt, &height);
 
     /// Allocate space to store the grey scale information
-    sizeInBytes = width * height * sizeof(int);
+    sizeInBytes = width * height * sizeof(uint8_t);
     greyVals = malloc(sizeInBytes);
 //    debugGrey = malloc(sizeInBytes);
 
@@ -65,9 +66,13 @@ int main(int argc, char** argv)
     {
         for(j=0; j < width - 1; j++)
         {
-            fscanf(greyFile, " %d,", pGreyVals++);
+            fscanf(greyFile, " %d,", &newVal);   /// read the new value in as an int
+            *pGreyVals = newVal & 0xFFFF;        /// stip off all but the last byte
+            pGreyVals++;
         }
-        fscanf(greyFile, " %d;", pGreyVals++);
+        fscanf(greyFile, " %d;", &newVal);
+        *pGreyVals = newVal & 0xFFFF;        /// stip off all but the last byte
+        pGreyVals++;
     }
     close(greyFile);
 
@@ -226,14 +231,16 @@ calcCumFreq:
     }
 
     k = 0;
-    fprintf(greyFile, "[");
+    fprintf(greyFile, "width %d\nheight %d\nimage [", width, height);
     for(i=0;i<height; i++)
     {
         for(j=0;j<width - 1;j++)
             fprintf(greyFile, "%u, ", equalGrey[k++]);
-        fprintf(greyFile, "%u;\n", equalGrey[k++]);
+        if (i < (height-1))
+            fprintf(greyFile, "%u;\n", equalGrey[k++]);
+        else
+            fprintf(greyFile, "%u]", equalGrey[k++]);
     }
-    fprintf(greyFile, "]\n");
     fflush(greyFile);
 
     close(greyFile);

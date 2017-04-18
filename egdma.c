@@ -85,25 +85,25 @@ int main(int argc, char** argv)
     printf("eof\n");fflush(stdout);
 
     /// testing
-//    for(j=0;j<GREYLEVELS;j++)
-//        printf("%d\t", j);
-//    printf("\n");
+    for(j=0;j<GREYLEVELS;j++)
+        printf("%d\t", j);
+    printf("\n");
 
 #if TIMEIT == 1
     clock_t hostTime = clock();
 #endif // TIMEIT
-//    for(i=0;i<height*width;i++)
-//        ++combinedResults[greyVals[i]];
+    for(i=0;i<height*width;i++)
+        ++combinedResults[greyVals[i]];
 #if TIMEIT == 1
     hostTime = clock() - hostTime;
 #endif // TIMEIT
 
-//    for(i=0;i<GREYLEVELS;i++)
-//    {
-//        printf("%d\t", combinedResults[i]);
-//        combinedResults[i] = 0; /// reset
-//    }
-//    printf("\ncore output\n");
+    printf("\ncore output\t");
+    for(i=0;i<GREYLEVELS;i++)
+    {
+        printf("%d,\t", combinedResults[i]);
+        combinedResults[i] = 0; /// reset
+    }
     /// end testing
 
 #if TIMEIT == 1
@@ -157,9 +157,9 @@ clock_t eTime = clock();
 //    printf("\ngrey\t");
 //    for(j=0;j<GREYLEVELS;j++)
 //        printf("%d\t", j);
-//    printf("\neFreq\t");
-//    for(j=0;j<GREYLEVELS;j++)
-//        printf("%u\t", combinedResults[j]);
+    printf("\neFreq\t");
+    for(j=0;j<GREYLEVELS;j++)
+        printf("%u\t", combinedResults[j]);
 //    printf("\n");
 
 #if TIMEIT == 1

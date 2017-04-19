@@ -120,7 +120,7 @@ clock_t eTime = clock();
 
     eGreyVals = coprthr_dmalloc(dd, szImageBuffer, 0);
     coprthr_dwrite(dd, eGreyVals, 0, (void*)greyVals, szImageBuffer, COPRTHR_E_WAIT);
-    printf("written %u bytes to shared mem\n", szImageBuffer);fflush(stdout);
+//    printf("written %u bytes to shared mem\n", szImageBuffer);fflush(stdout);
 
 //goto  calcCumFreq;      /// testing
     eCoreResults = coprthr_dmalloc(dd, (ECORES * GREYLEVELS * sizeof(int)), 0); /// Output only
@@ -164,7 +164,7 @@ clock_t eTime = clock();
 
 #if TIMEIT == 1
     eTime = clock() - eTime ;
-    printf("The scan on the host took: %ld milliseconds. The Epiphany took: %ld milliseconds\n", hostTime, eTime);
+    printf("\nThe scan on the host took: %ld milliseconds. The Epiphany took: %ld milliseconds\n", hostTime, eTime);
 #endif // TIMEIT
 
 calcCumFreq:

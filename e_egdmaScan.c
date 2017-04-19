@@ -56,7 +56,7 @@ void __entry k_scan(scan_args * args)
     void * startLoc = args->g_greyVals + (gid * band * sizeof(uint8_t));
 
     /// debug
-    host_printf("%d\t\timagesize=%u\tband=%u\tspace=0x%x\tframeSizeBytes=%d\ttaileEnd=%u\tframes=%d\tstartloc=0x%x\tA=x0%x\tB=0x%x\n", gid, imageSize, band, localSize, workArea, tailEnds, workUnits, startLoc, A, B);
+//    host_printf("%d\t\timagesize=%u\tband=%u\tspace=0x%x\tframeSizeBytes=%d\ttaileEnd=%u\tframes=%d\tstartloc=0x%x\tA=x0%x\tB=0x%x\n", gid, imageSize, band, localSize, workArea, tailEnds, workUnits, startLoc, A, B);
 
     if(processingA)
     {
@@ -74,7 +74,7 @@ void __entry k_scan(scan_args * args)
     else
         trxCount = tailEnds / 8;
 
-    host_printf("%d\tcount=%d\tto 0x%x\tfrom 0x%x\n", gid, trxCount, beingTransferred, startLoc);
+//    host_printf("%d\tcount=%d\tto 0x%x\tfrom 0x%x\n", gid, trxCount, beingTransferred, startLoc);
     e_dma_set_desc(currentChannel,                              /// channel
                     E_DMA_DWORD | E_DMA_ENABLE | E_DMA_MASTER,  /// config
                     0x0,                                          /// next descriptor (there isn't one)
@@ -89,14 +89,14 @@ void __entry k_scan(scan_args * args)
                     &dmaDesc);                                  /// dma descriptor
 
     e_dma_start(&dmaDesc, currentChannel);
-    host_printf("%d\tstarted 0x%x\n", gid, dmaDesc.count);
+//    host_printf("%d\tstarted 0x%x\n", gid, dmaDesc.count);
 
     while(workUnits--)
     {
 #if TIMEIT == 2
         STARTCLOCK1(waitStartTicks);  /// e_dma_wait does not idle - it is a wait loop
 #endif // TIMEIT
-        host_printf("%d:\twaiting for first packet\n", gid);
+//        host_printf("%d:\twaiting for first packet\n", gid);
         e_dma_wait(currentChannel);     /// wait for the current transfer to complete
 #if TIMEIT == 2
         STOPCLOCK1(waitStopTicks);

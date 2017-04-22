@@ -45,10 +45,10 @@ int main(int argc, char** argv)
 
     FILE * greyFile;
 
-    greyFile = fopen("./grey.csv", "r");
+    greyFile = fopen(argv[1], "r");
     if(!greyFile)
     {
-        printf("Something wrong with the input grey file...\n");
+        printf("Something wrong with the input greyscale file: %s...\n", argv[1]);
         exit(-1);
     }
 
@@ -61,7 +61,7 @@ int main(int argc, char** argv)
     szImageBuffer = sizeInBytes;
     if (sizeInBytes % 8)            /// if the modulus is non-zero
         szImageBuffer += 8;         /// add another 8 bytes
-   printf("sizeInBytes: %u, size of Image buffer: %u\n", sizeInBytes, szImageBuffer); fflush(stdout);
+//   printf("sizeInBytes: %u, size of Image buffer: %u\n", sizeInBytes, szImageBuffer); fflush(stdout);
     greyVals = malloc(szImageBuffer);
 //    debugGrey = malloc(sizeInBytes);
 
@@ -82,28 +82,28 @@ int main(int argc, char** argv)
         pGreyVals++;
     }
     close(greyFile);
-    printf("eof\n");fflush(stdout);
+//    printf("eof\n");fflush(stdout);
 
     /// testing
-    for(j=0;j<GREYLEVELS;j++)
-        printf("%d\t", j);
-    printf("\n");
-
-#if TIMEIT == 1
-    clock_t hostTime = clock();
-#endif // TIMEIT
-    for(i=0;i<height*width;i++)
-        ++combinedResults[greyVals[i]];
-#if TIMEIT == 1
-    hostTime = clock() - hostTime;
-#endif // TIMEIT
-
-    printf("\ncore output\t");
-    for(i=0;i<GREYLEVELS;i++)
-    {
-        printf("%d,\t", combinedResults[i]);
-        combinedResults[i] = 0; /// reset
-    }
+//    for(j=0;j<GREYLEVELS;j++)
+//        printf("%d\t", j);
+//    printf("\n");
+//
+//#if TIMEIT == 1
+//    clock_t hostTime = clock();
+//#endif // TIMEIT
+//    for(i=0;i<height*width;i++)
+//        ++combinedResults[greyVals[i]];
+//#if TIMEIT == 1
+//    hostTime = clock() - hostTime;
+//#endif // TIMEIT
+//
+//    printf("\ncore output\t");
+//    for(i=0;i<GREYLEVELS;i++)
+//    {
+//        printf("%d,\t", combinedResults[i]);
+//        combinedResults[i] = 0; /// reset
+//    }
     /// end testing
 
 #if TIMEIT == 1
@@ -157,9 +157,9 @@ clock_t eTime = clock();
 //    printf("\ngrey\t");
 //    for(j=0;j<GREYLEVELS;j++)
 //        printf("%d\t", j);
-    printf("\neFreq\t");
-    for(j=0;j<GREYLEVELS;j++)
-        printf("%u\t", combinedResults[j]);
+//    printf("\neFreq\t");
+//    for(j=0;j<GREYLEVELS;j++)
+//        printf("%u\t", combinedResults[j]);
 //    printf("\n");
 
 #if TIMEIT == 1
@@ -187,22 +187,22 @@ calcCumFreq:
         map[j] = i;
     }
 
-    printf("\ngrey\t");
-    for(j=0;j<GREYLEVELS;j++)
-        printf("%d\t", j);
-    printf("\nimage\t");
-    for(j=0;j<GREYLEVELS;j++)
-        printf("%u\t", cdf_image[j]);
-    printf("\nideal\t");
-    for(j=0;j<GREYLEVELS;j++)
-        printf("%u\t", cdf_ideal[j]);
-    printf("\nmap\t");
-    for(j=0;j<GREYLEVELS;j++)
-        printf("%u\t", map[j]);
-    printf("\n");
+//    printf("\ngrey\t");
+//    for(j=0;j<GREYLEVELS;j++)
+//        printf("%d\t", j);
+//    printf("\nimage\t");
+//    for(j=0;j<GREYLEVELS;j++)
+//        printf("%u\t", cdf_image[j]);
+//    printf("\nideal\t");
+//    for(j=0;j<GREYLEVELS;j++)
+//        printf("%u\t", cdf_ideal[j]);
+//    printf("\nmap\t");
+//    for(j=0;j<GREYLEVELS;j++)
+//        printf("%u\t", map[j]);
+//    printf("\n");
 //    printf("\n"); fflush(stdout);
 
-goto tidyUpAndExit;
+//goto tidyUpAndExit;
 
     sizeOfMap = GREYLEVELS * sizeof(uint8_t);
 //    printf("malloc %d\t", (int)sizeOfMap); fflush(stdout);
@@ -222,7 +222,7 @@ goto tidyUpAndExit;
 //printf("getsym from prog: 0x%x\n", (unsigned int)prg); fflush(stdout);
     krn = coprthr_getsym(prg, "k_map");
 //    coprthr_event_t ev = coprthr_dexec(dd, ECORES, krn, (void*)&m_args, 0);
-//printf("calling dd:%u\t cores:%d\tkrn:0x%x\tmap: 0x%x\tsize:%d\n", dd, ECORES, (unsigned int)krn, (unsigned int)m_args.g_map, sizeof(m_args)); fflush(stdout);
+printf("calling dd:%u\t cores:%d\tkrn:0x%x\tmap: 0x%x\tsize:%d\n", dd, ECORES, (unsigned int)krn, (unsigned int)m_args.g_map, sizeof(m_args)); fflush(stdout);
     coprthr_mpiexec(dd, ECORES, krn, &m_args, sizeof(m_args), 0);
 
 //printf("waiting map\t"); fflush(stdout);

@@ -144,13 +144,9 @@ void __entry k_scan(scan_args * args)
             ++greyDistribution[beingTransferred[i]];        /// the last transferred frame
     }
 
-
     /// write back the results synchronously because there is nothing else to do
-//    host_printf("%d\tcopy back\n", gid);
-
     e_dma_copy((args->g_result) + (gid * GREYLEVELS * sizeof(int)), (void*)greyDistribution, GREYLEVELS * sizeof(int));
-    //e_write((void*)&e_emem_config, 0, 0, (args->g_result) + (gid * GREYLEVELS * sizeof(int)), (void*)greyDistribution, GREYLEVELS * sizeof(int));
-//    host_printf("%d\texiting\n", gid);
+//    host_printf("%d: scan results to: 0x%x\n", gid, args->g_result);
 
 tidyUpAndExit:
     /// tidy up

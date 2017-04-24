@@ -4,11 +4,8 @@
 #define ECORES 16    /// Not great - Should be a function call
 #define LASTCORENUM 15  /// the last core does the remainder at the end of the file
 #define GREYLEVELS 256
-//#define TIMEIT 1        /// host scan
-//#define TIMEIT 2      /// Epiphany scan
-//#define TIMEIT 3      /// host map
-//#define TIMEIT 4      /// Epiphany map
-#define SHARED_RAM (0x01000000)
+//#define TIMEIT 1        /// wall clock host  v Epiphany
+//#define TIMEIT 2      /// Epiphany internal
 
 typedef struct
 {
@@ -27,7 +24,6 @@ typedef struct
     size_t  szImageBuffer;   /// the size of the image buffer
     void *  g_map;
     void *  g_greyVals;
-//    void * g_mappedVals;
 //    int * debug;
 } map_args;
 

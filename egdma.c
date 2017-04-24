@@ -7,14 +7,11 @@
 
 #include "egdma.h"
 
-//#include <e-lib.h>
-
-
 int main(int argc, char** argv)
 {
 
     int width, height;                                  /// the dimensions of the image
-    uint8_t * greyVals;                                 /// allocated after the width and height are know
+    uint8_t * greyVals;                                 /// allocated after the width and height are known
     uint8_t * equalGrey;                                /// the equalised grey values
     uint8_t * pGreyVals;                                /// an index into the greyVals table
     char txt[10];                                       /// text input buffer
@@ -29,9 +26,8 @@ int main(int argc, char** argv)
     unsigned int cdf_ideal[GREYLEVELS] = { 0 };         /// the ideal (evenly distributed) grey levels
     unsigned int idealFreq;                             /// the ideal number of pixels of each grey level
     uint8_t      map[GREYLEVELS] = { 0 };               /// the translation map of existing grey levels (the index) to the ideal level (the value)
-//    uint8_t      mapcpy[GREYLEVELS] = { 0 };//testing
     size_t sizeOfMap;
-    int debug[1024];
+//    int debug[1024];
     uint8_t test;
 
     coprthr_mem_t eGreyVals;
@@ -54,14 +50,12 @@ int main(int argc, char** argv)
 
     fscanf(greyFile, "%s %d", txt, &width);
     fscanf(greyFile, "%s %d", txt, &height);
-//    printf("width: %d, height: %d\n", width, height);fflush(stdout);
 
     /// Allocate space to store the grey scale information
     sizeInBytes = width * height * sizeof(uint8_t);
     szImageBuffer = sizeInBytes;
     if (sizeInBytes % 8)            /// if the modulus is non-zero
         szImageBuffer += 8;         /// add another 8 bytes
-//   printf("sizeInBytes: %u, size of Image buffer: %u\n", sizeInBytes, szImageBuffer); fflush(stdout);
     greyVals = malloc(szImageBuffer);
 //    debugGrey = malloc(sizeInBytes);
 
@@ -74,7 +68,6 @@ int main(int argc, char** argv)
         {
             fscanf(greyFile, " %d,", &newVal);   /// read the new value in as an int
             *pGreyVals = newVal & 0xFFFF;        /// stip off all but the last byte
-//            printf("%d, ", (int)(*pGreyVals));
             pGreyVals++;
         }
         fscanf(greyFile, " %d;", &newVal);
@@ -82,32 +75,21 @@ int main(int argc, char** argv)
         pGreyVals++;
     }
     close(greyFile);
-//    printf("eof\n");fflush(stdout);
-
-    /// testing
-//    for(j=0;j<GREYLEVELS;j++)
-//        printf("%d\t", j);
-//    printf("\n");
-//
-//#if TIMEIT == 1
-//    clock_t hostTime = clock();
-//#endif // TIMEIT
-//    for(i=0;i<height*width;i++)
-//        ++combinedResults[greyVals[i]];
-//#if TIMEIT == 1
-//    hostTime = clock() - hostTime;
-//#endif // TIMEIT
-//
-//    printf("\ncore output\t");
-//    for(i=0;i<GREYLEVELS;i++)
-//    {
-//        printf("%d,\t", combinedResults[i]);
-//        combinedResults[i] = 0; /// reset
-//    }
-    /// end testing
 
 #if TIMEIT == 1
-clock_t eTime = clock();
+    clock_t hostTime = clock();
+
+    for(i=0;i<height*width;i++)
+        ++combinedResults[greyVals[i]];
+    hostTime = clock() - hostTime;
+
+///   reset combinedResults for the epiphany results
+    for(i=0;i<GREYLEVELS;i++)
+    {
+        combinedResults[i] = 0; /// reset
+    }
+
+    clock_t eTime = clock();        /// start the epiphany clock
 #endif // TIMEIT
 
     /// Open the co processor
@@ -120,7 +102,6 @@ clock_t eTime = clock();
 
     eGreyVals = coprthr_dmalloc(dd, szImageBuffer, 0);
     coprthr_dwrite(dd, eGreyVals, 0, (void*)greyVals, szImageBuffer, COPRTHR_E_WAIT);
-//    printf("written %u bytes to shared mem\n", szImageBuffer);fflush(stdout);
 
 //goto  calcCumFreq;      /// testing
     eCoreResults = coprthr_dmalloc(dd, (ECORES * GREYLEVELS * sizeof(int)), 0); /// Output only
@@ -148,19 +129,9 @@ clock_t eTime = clock();
         for (j=0;j<GREYLEVELS;j++)
         {
             combinedResults[j] += coreResults[k];
-//            printf("%d\t", coreResults[k]);
             k++;
-//            if ((k) && !(k % 256))
-//                printf("\n");
         }
     }
-//    printf("\ngrey\t");
-//    for(j=0;j<GREYLEVELS;j++)
-//        printf("%d\t", j);
-//    printf("\neFreq\t");
-//    for(j=0;j<GREYLEVELS;j++)
-//        printf("%u\t", combinedResults[j]);
-//    printf("\n");
 
 #if TIMEIT == 1
     eTime = clock() - eTime ;
@@ -187,30 +158,24 @@ calcCumFreq:
         map[j] = i;
     }
 
-//    printf("\ngrey\t");
-//    for(j=0;j<GREYLEVELS;j++)
-//        printf("%d\t", j);
-//    printf("\nimage\t");
-//    for(j=0;j<GREYLEVELS;j++)
-//        printf("%u\t", cdf_image[j]);
-//    printf("\nideal\t");
-//    for(j=0;j<GREYLEVELS;j++)
-//        printf("%u\t", cdf_ideal[j]);
-//    printf("\nmap\t");
-//    for(j=0;j<GREYLEVELS;j++)
-//        printf("%u\t", map[j]);
-//    printf("\n");
-//    printf("\n"); fflush(stdout);
+#if TIMEIT == 1
 
-//goto tidyUpAndExit;
+    uint8_t cpGrayVals[szImageBuffer];                                 /// copy the image for timing
+    for (j=0;j<szImageBuffer;j++)
+        cpGrayVals[j] = greyVals[j];
+
+    hostTime = clock();
+    for (j=0;j<height*width;j++)
+        cpGrayVals[j] = map[cpGrayVals[j]];
+    hostTime = clock() - hostTime;
+
+    eTime = clock();
+#endif
 
     sizeOfMap = GREYLEVELS * sizeof(uint8_t);
-//    printf("malloc %d\t", (int)sizeOfMap); fflush(stdout);
     eMap = coprthr_dmalloc(dd, sizeOfMap, 0);
-//    printf("dwrite\t"); fflush(stdout);
     coprthr_dwrite(dd, eMap, 0, (void*)map, sizeOfMap, COPRTHR_E_WAIT);
 
-//    printf("adding params\t"); fflush(stdout);
     map_args m_args;
     m_args.width = width;
     m_args.height = height;
@@ -219,18 +184,19 @@ calcCumFreq:
     m_args.g_greyVals = (void*)coprthr_memptr(eGreyVals, 0);
 
 	prg = coprthr_cc_read_bin("./egdmaMap.e32", 0);            /// still needed
-//printf("getsym from prog: 0x%x\n", (unsigned int)prg); fflush(stdout);
     krn = coprthr_getsym(prg, "k_map");
 //    coprthr_event_t ev = coprthr_dexec(dd, ECORES, krn, (void*)&m_args, 0);
-printf("calling dd:%u\t cores:%d\tkrn:0x%x\tmap: 0x%x\tsize:%d\n", dd, ECORES, (unsigned int)krn, (unsigned int)m_args.g_map, sizeof(m_args)); fflush(stdout);
     coprthr_mpiexec(dd, ECORES, krn, &m_args, sizeof(m_args), 0);
 
-//printf("waiting map\t"); fflush(stdout);
     coprthr_dwait(dd);
     equalGrey = malloc(szImageBuffer);
-//printf("readling\t"); fflush(stdout);
     coprthr_dread(dd, eGreyVals, 0, (void*)equalGrey, szImageBuffer, COPRTHR_E_WAIT);
 
+
+#if TIMEIT == 1
+    eTime = clock() - eTime;
+    printf("\nThe map on the host took: %ld milliseconds. The Epiphany took: %ld milliseconds\n", hostTime, eTime);
+#endif // TIMEIT
 
 /// Output the equalised grey values into a new file
 
@@ -253,12 +219,11 @@ printf("calling dd:%u\t cores:%d\tkrn:0x%x\tmap: 0x%x\tsize:%d\n", dd, ECORES, (
             fprintf(greyFile, "%u]", equalGrey[k++]);
     }
     fflush(greyFile);
-
     close(greyFile);
 
     /// tidy up
-    coprthr_dfree(dd, eMap);
 tidyUpAndExit:
+    coprthr_dfree(dd, eMap);
     coprthr_dfree(dd, eGreyVals);
     coprthr_dclose(dd);
     free(greyVals);

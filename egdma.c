@@ -6,6 +6,10 @@
 #include <coprthr_mpi.h>
 
 #include "egdma.h"
+#define USAGE {printf("Usage: %s [<inputTextFile>] [-o <outputTextFile>\n", argv[0]); exit (-1);}
+#define FILEERR { printf("Something wrong with the input greyscale file: %s...\n", argv[1]); exit(-1); }
+
+
 
 int main(int argc, char** argv)
 {
@@ -40,12 +44,45 @@ int main(int argc, char** argv)
 /// Image lines are separated by a ;
 
     FILE * greyFile;
+    int outFileArg = 0;      /// which command line arguement contain the string for the output file
 
-    greyFile = fopen(argv[1], "r");
-    if(!greyFile)
+    switch (argc)
     {
-        printf("Something wrong with the input greyscale file: %s...\n", argv[1]);
-        exit(-1);
+    case 1:     /// stdin and stdout
+        printf("argc=%d, 0=%s, 1=%s\n", argc, argv[0], argv[1]);
+        greyFile =  stdin;
+        outFileArg = 0;
+    break;
+    case 2:     /// in from file out to stdout
+        printf("argc=%d, 0=%s, 1=%s\n", argc, argv[0], argv[1]);
+        greyFile = fopen(argv[1], "r");
+        if(!greyFile)
+            FILEERR;
+        outFileArg = 0;
+    break;
+    case 3:         /// in from stdin out to file (with -o on the cmd lne)
+        printf("argc=%d, 0=%s, 1=%s, 2=%s\n", argc, argv[0], argv[1], argv[2]);
+        greyFile =  stdin;
+        if (strcmp(argv[1], "-o") == 0)
+            outFileArg = 2;
+        else
+            USAGE;
+    break;
+    case 4:         /// in from file out to file
+        printf("argc=%d, 0=%s, 1=%s, 2=%s, 3=%s\n", argc, argv[0], argv[1], argv[2], argv[3]);
+        greyFile = fopen(argv[1], "r");
+        if(!greyFile)
+        {
+            printf("Something wrong with the input greyscale file: %s...\n", argv[1]);
+            exit(-1);
+        }
+        if (strcmp(argv[2], "-o") == 0)
+            outFileArg = 3;
+        else
+            USAGE;
+    break;
+    default:
+        USAGE;
     }
 
     fscanf(greyFile, "%s %d", txt, &width);
@@ -103,7 +140,6 @@ int main(int argc, char** argv)
     eGreyVals = coprthr_dmalloc(dd, szImageBuffer, 0);
     coprthr_dwrite(dd, eGreyVals, 0, (void*)greyVals, szImageBuffer, COPRTHR_E_WAIT);
 
-//goto  calcCumFreq;      /// testing
     eCoreResults = coprthr_dmalloc(dd, (ECORES * GREYLEVELS * sizeof(int)), 0); /// Output only
 
     scan_args s_args;
@@ -200,12 +236,18 @@ calcCumFreq:
 
 /// Output the equalised grey values into a new file
 
-    greyFile = fopen("./equalGrey.csv", "w");
-    if(!greyFile)
+    if(outFileArg)
     {
-        printf("Something wrong with the input grey file...\n");
-        exit(-1);
+        greyFile = fopen(argv[outFileArg], "w");
+
+        if(!greyFile)
+        {
+            printf("Something wrong with the input grey file...\n");
+            exit(-1);
+        }
     }
+    else
+        greyFile = stdout;
 
     k = 0;
     fprintf(greyFile, "width %d\nheight %d\nimage [", width, height);

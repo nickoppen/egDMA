@@ -25,7 +25,7 @@ void __entry k_map(map_args * args)
     );
 
     /// how much space do we have
-    uint8_t map[GREYLEVELS];                               /// local storage for the grey scale map
+    uint8_t map[GRAYLEVELS];                               /// local storage for the grey scale map
     void * baseAddr = coprthr_tls_sbrk(0);                      /// begining of free space
     uintptr_t baseLowOrder = (int)baseAddr & 0x0000FFFF;
     unsigned int localSize = sp_val - baseLowOrder - 0x200;      /// amount of free space available in bytes   /// leave 512 bytes as a buffer
@@ -49,13 +49,13 @@ void __entry k_map(map_args * args)
     unsigned int trxCount;                                      /// frames or tailEndCount
 
     /// where in the global buffer does it come from
-    void * startLoc = args->g_greyVals + (gid * band * sizeof(uint8_t));
+    void * startLoc = args->g_grayVals + (gid * band * sizeof(uint8_t));
 
     /// debug
 //    host_printf("%d\t\timagesize=%u\tband=%u\tspace=0x%x\tframeSizeBytes=%d\ttaileEnd=%u\tframes=%d\tstartloc=0x%x\tA=x0%x\tB=0x%x\n", gid, imageSize, band, localSize, workArea, tailEnds, workUnits, startLoc, A, B);
 
 ///    read in the map using memcpy (probably faster for a small amount of data)
-    memcpy(map, args->g_map, GREYLEVELS);
+    memcpy(map, args->g_map, GRAYLEVELS);
 //    printf("%d\t%u\t%u\t%u\t%u\t%u\t%u\n", gid, map[29], map[30], map[31], map[32], map[33], map[34]);
 
     /// set up the DMA dexcriptors once and then only change the destination in the loop

@@ -17,7 +17,7 @@ void __entry k_scan(scan_args * args)
 #endif // TIMEIT
 
     unsigned int gid = coprthr_corenum();
-    unsigned int greyDistribution[GREYLEVELS] = { 0 };   /// all elements set to 0
+    unsigned int grayDistribution[GRAYLEVELS] = { 0 };   /// all elements set to 0
     unsigned int i;
     uint8_t debug;
 //    host_printf("%d: in Scan\n", gid);
@@ -53,7 +53,7 @@ void __entry k_scan(scan_args * args)
     unsigned int trxCount;                                      /// frames or tailEndCount
 
     /// where in the global buffer does it come from
-    void * startLoc = args->g_greyVals + (gid * band * sizeof(uint8_t));
+    void * startLoc = args->g_grayVals + (gid * band * sizeof(uint8_t));
 
     /// debug
 //    host_printf("%d\t\timagesize=%u\tband=%u\tspace=0x%x\tframeSizeBytes=%d\ttaileEnd=%u\tframes=%d\tstartloc=0x%x\tA=x0%x\tB=0x%x\n", gid, imageSize, band, localSize, workArea, tailEnds, workUnits, startLoc, A, B);
@@ -131,7 +131,7 @@ void __entry k_scan(scan_args * args)
 //    host_printf("%d\tcount auto:0x%x\n", gid, dmaDesc.count);
 
         for(i=0; i<workArea; i++)          /// only the last frame will have tailEndInts to process and that is done below
-            ++greyDistribution[beingProcessed[i]];
+            ++grayDistribution[beingProcessed[i]];
 
         processingA = !processingA;             /// swap buffers
     }
@@ -141,11 +141,11 @@ void __entry k_scan(scan_args * args)
 //    host_printf("%d\twaiting \n", gid);
         e_dma_wait(currentChannel);                         /// wait for the last transfer to complete
         for(i=0; i<tailEnds; i++)                           /// scan the remaining data
-            ++greyDistribution[beingTransferred[i]];        /// the last transferred frame
+            ++grayDistribution[beingTransferred[i]];        /// the last transferred frame
     }
 
     /// write back the results synchronously because there is nothing else to do
-    e_dma_copy((args->g_result) + (gid * GREYLEVELS * sizeof(int)), (void*)greyDistribution, GREYLEVELS * sizeof(int));
+    e_dma_copy((args->g_result) + (gid * GRAYLEVELS * sizeof(int)), (void*)grayDistribution, GRAYLEVELS * sizeof(int));
 //    host_printf("%d: scan results to: 0x%x\n", gid, args->g_result);
 
 tidyUpAndExit:

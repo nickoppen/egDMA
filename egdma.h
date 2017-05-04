@@ -7,6 +7,8 @@
 //#define TIMEIT 1        /// wall clock host  v Epiphany
 //#define TIMEIT 2      /// Epiphany internal
 
+//#define UseDMA
+
 typedef struct
 {
     int     width;           /// the width of the original picture

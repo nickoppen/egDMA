@@ -49,19 +49,19 @@ int main(int argc, char** argv)
     switch (argc)
     {
     case 1:     /// stdin and stdout
-        printf("argc=%d, 0=%s, 1=%s\n", argc, argv[0], argv[1]);
+//        printf("argc=%d, 0=%s, 1=%s\n", argc, argv[0], argv[1]);
         grayFile =  stdin;
         outFileArg = 0;
     break;
     case 2:     /// in from file out to stdout
-        printf("argc=%d, 0=%s, 1=%s\n", argc, argv[0], argv[1]);
+//        printf("argc=%d, 0=%s, 1=%s\n", argc, argv[0], argv[1]);
         grayFile = fopen(argv[1], "r");
         if(!grayFile)
             FILEERR;
         outFileArg = 0;
     break;
     case 3:         /// in from stdin out to file (with -o on the cmd lne)
-        printf("argc=%d, 0=%s, 1=%s, 2=%s\n", argc, argv[0], argv[1], argv[2]);
+//        printf("argc=%d, 0=%s, 1=%s, 2=%s\n", argc, argv[0], argv[1], argv[2]);
         grayFile =  stdin;
         if (strcmp(argv[1], "-o") == 0)
             outFileArg = 2;
@@ -69,7 +69,7 @@ int main(int argc, char** argv)
             USAGE;
     break;
     case 4:         /// in from file out to file
-        printf("argc=%d, 0=%s, 1=%s, 2=%s, 3=%s\n", argc, argv[0], argv[1], argv[2], argv[3]);
+//        printf("argc=%d, 0=%s, 1=%s, 2=%s, 3=%s\n", argc, argv[0], argv[1], argv[2], argv[3]);
         grayFile = fopen(argv[1], "r");
         if(!grayFile)
         {

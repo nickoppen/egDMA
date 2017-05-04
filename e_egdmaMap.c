@@ -51,12 +51,8 @@ void __entry k_map(map_args * args)
     /// where in the global buffer does it come from
     void * startLoc = args->g_grayVals + (gid * band * sizeof(uint8_t));
 
-    /// debug
-//    host_printf("%d\t\timagesize=%u\tband=%u\tspace=0x%x\tframeSizeBytes=%d\ttaileEnd=%u\tframes=%d\tstartloc=0x%x\tA=x0%x\tB=0x%x\n", gid, imageSize, band, localSize, workArea, tailEnds, workUnits, startLoc, A, B);
-
 ///    read in the map using memcpy (probably faster for a small amount of data)
     memcpy(map, args->g_map, GRAYLEVELS);
-//    printf("%d\t%u\t%u\t%u\t%u\t%u\t%u\n", gid, map[29], map[30], map[31], map[32], map[33], map[34]);
 
     /// set up the DMA dexcriptors once and then only change the destination in the loop
     e_dma_set_desc(E_DMA_1,                                     /// outbound data channel on the interuptable channel
@@ -94,14 +90,11 @@ void __entry k_map(map_args * args)
         dmaDescInbound.src_addr = startLoc;
         dmaDescInbound.dst_addr = (void*)inbound;
 
-//        host_printf("%d\tccount:0x%x\tto 0x%x\tfrom 0x%x\n", gid, dmaDescInbound.count, inbound, startLoc);
         e_dma_start(&dmaDescInbound, E_DMA_0); /// start the first inbound transfer
-        //host_printf("%d: %u inbound to %x\n", gid, frameSizeInts, inbound);
 
 //#if TIMEIT == 4
 //        STARTCLOCK1(waitStartTicks);  /// e_dma_wait does not idle - it is a wait loop
 //#endif // TIMEIT
-//    host_printf("...waiting on DMA0\n");
         e_dma_wait(E_DMA_0);
 //#if TIMEIT == 4
 //        STOPCLOCK1(waitStopTicks);
@@ -122,13 +115,11 @@ void __entry k_map(map_args * args)
             outbound = B;
         }
 
-//    host_printf("...waiting on DMA1\n");
         e_dma_wait(E_DMA_1);            /// wait til the previous copy bakc has finished before starting the next one
 
         dmaDescOutbound.src_addr = outbound;
         dmaDescOutbound.dst_addr = startLoc;
         e_dma_start(&dmaDescOutbound, E_DMA_1); /// start the first inbound transfer
-        //host_printf("%d\t%u\t to 0x%x\tfrom 0x%x\n", gid, frameSizeInts, outbound, startLoc);
 
         startLoc += workArea;     /// transfer the next frame
 

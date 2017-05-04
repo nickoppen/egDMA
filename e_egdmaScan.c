@@ -8,6 +8,7 @@
 
 #include "egdma.h"
 
+#ifdef UseDMA
 void __entry k_scan(scan_args * args)
 {
 #if TIMEIT == 2
@@ -20,7 +21,6 @@ void __entry k_scan(scan_args * args)
     unsigned int grayDistribution[GRAYLEVELS] = { 0 };   /// all elements set to 0
     unsigned int i;
     uint8_t debug;
-//    host_printf("%d: in Scan\n", gid);
 
     register uintptr_t sp_val;      /// Thanks jar
     __asm__ __volatile__(
@@ -32,7 +32,6 @@ void __entry k_scan(scan_args * args)
     void * baseAddr = coprthr_tls_sbrk(0);                      /// begining of free space
     uintptr_t baseLowOrder = (int)baseAddr & 0x0000FFFF;
     unsigned int localSize = sp_val - baseLowOrder - 0x200;      /// amount of free space available in bytes   /// leave 512 bytes as a buffer
-//    unsigned int localSize = 0x1000;
     unsigned int workArea = (localSize / 2);                    /// split the avalable memory into two chunks
                  workArea -= (workArea % 8);                    /// and make them divisible by 8
     uint8_t * A = (int *)coprthr_tls_sbrk(workArea);          /// 1st chunks
@@ -55,9 +54,6 @@ void __entry k_scan(scan_args * args)
     /// where in the global buffer does it come from
     void * startLoc = args->g_grayVals + (gid * band * sizeof(uint8_t));
 
-    /// debug
-//    host_printf("%d\t\timagesize=%u\tband=%u\tspace=0x%x\tframeSizeBytes=%d\ttaileEnd=%u\tframes=%d\tstartloc=0x%x\tA=x0%x\tB=0x%x\n", gid, imageSize, band, localSize, workArea, tailEnds, workUnits, startLoc, A, B);
-
     if(processingA)
     {
         beingTransferred = A;        /// transfer first frame to A ready for processing
@@ -74,7 +70,6 @@ void __entry k_scan(scan_args * args)
     else
         trxCount = tailEnds / 8;
 
-//    host_printf("%d\tcount=%d\tto 0x%x\tfrom 0x%x\n", gid, trxCount, beingTransferred, startLoc);
     e_dma_set_desc(currentChannel,                              /// channel
                     E_DMA_DWORD | E_DMA_ENABLE | E_DMA_MASTER,  /// config
                     0x0,                                          /// next descriptor (there isn't one)
@@ -89,14 +84,12 @@ void __entry k_scan(scan_args * args)
                     &dmaDesc);                                  /// dma descriptor
 
     e_dma_start(&dmaDesc, currentChannel);
-//    host_printf("%d\tstarted 0x%x\n", gid, dmaDesc.count);
 
     while(workUnits--)
     {
 #if TIMEIT == 2
         STARTCLOCK1(waitStartTicks);  /// e_dma_wait does not idle - it is a wait loop
 #endif // TIMEIT
-//        host_printf("%d:\twaiting for first packet\n", gid);
         e_dma_wait(currentChannel);     /// wait for the current transfer to complete
 #if TIMEIT == 2
         STOPCLOCK1(waitStopTicks);
@@ -128,7 +121,6 @@ void __entry k_scan(scan_args * args)
         dmaDesc.dst_addr = (void*)beingTransferred;
 
         e_dma_start(&dmaDesc, currentChannel);
-//    host_printf("%d\tcount auto:0x%x\n", gid, dmaDesc.count);
 
         for(i=0; i<workArea; i++)          /// only the last frame will have tailEndInts to process and that is done below
             ++grayDistribution[beingProcessed[i]];
@@ -138,7 +130,6 @@ void __entry k_scan(scan_args * args)
 
     if(tailEnds)
     {
-//    host_printf("%d\twaiting \n", gid);
         e_dma_wait(currentChannel);                         /// wait for the last transfer to complete
         for(i=0; i<tailEnds; i++)                           /// scan the remaining data
             ++grayDistribution[beingTransferred[i]];        /// the last transferred frame
@@ -146,7 +137,6 @@ void __entry k_scan(scan_args * args)
 
     /// write back the results synchronously because there is nothing else to do
     e_dma_copy((args->g_result) + (gid * GRAYLEVELS * sizeof(int)), (void*)grayDistribution, GRAYLEVELS * sizeof(int));
-//    host_printf("%d: scan results to: 0x%x\n", gid, args->g_result);
 
 tidyUpAndExit:
     /// tidy up
@@ -158,3 +148,81 @@ tidyUpAndExit:
     host_printf("%d: Total Ticks: %u, working ticks: %u waiting ticks: %u (%0.2f%%).\n", gid, totalClockTicks, (totalClockTicks - totalWaitTicks), totalWaitTicks, ((float)(totalClockTicks - totalWaitTicks) / (float)totalClockTicks) * 100.0);
 #endif // TIMEIT
 }
+#else
+void __entry k_scan(scan_args * args)
+{
+#if TIMEIT == 2
+    unsigned int clkStartTicks, waitStartTicks, clkStopTicks, waitStopTicks, totalClockTicks;
+    unsigned int totalWaitTicks = 0;
+    STARTCLOCK0(clkStartTicks);
+#endif // TIMEIT
+
+    unsigned int gid = coprthr_corenum();
+    unsigned int grayDistribution[GRAYLEVELS] = { 0 };   /// all elements set to 0
+    unsigned int i;
+    uint8_t debug;
+
+    register uintptr_t sp_val;      /// Thanks jar
+    __asm__ __volatile__(
+       "mov %[sp_val], sp"
+       : [sp_val] "=r" (sp_val)
+    );
+
+    /// how much space do we have
+    void * baseAddr = coprthr_tls_sbrk(0);                      /// begining of free space
+    uintptr_t baseLowOrder = (int)baseAddr & 0x0000FFFF;
+    unsigned int localSize = sp_val - baseLowOrder - 0x200;      /// amount of free space available in bytes   /// leave 512 bytes as a buffer
+    uint8_t * A = (int *)coprthr_tls_sbrk(localSize);          /// 1st chunks
+
+    /// how much data do we have to process
+    unsigned int imageSize = args->szImageBuffer;
+    unsigned int band = imageSize / ECORES;                     /// split the image up int 16 "bands" (or horizontal strips)
+    if (gid == LASTCORENUM)                                     /// =========================== this needs checking ==========================================
+        band += imageSize % ECORES;                             /// if it is not exactly divisible by 16 then add the remainder onto the workload for core 15
+    unsigned int workUnits = band / localSize;
+    unsigned int tailEnds = band % localSize;
+
+    /// where in the global buffer does it come from
+    void * startLoc = args->g_grayVals + (gid * band * sizeof(uint8_t));
+
+
+    while(workUnits--)
+    {
+#if TIMEIT == 2
+        STARTCLOCK1(waitStartTicks);  /// e_dma_wait does not idle - it is a wait loop
+#endif // TIMEIT
+        memcpy(A, startLoc, localSize);
+#if TIMEIT == 2
+        STOPCLOCK1(waitStopTicks);
+        totalWaitTicks += (waitStartTicks - waitStopTicks);
+#endif // TIMEIT
+
+        startLoc += localSize;           /// transfer the next frame
+
+        for(i=0; i<localSize; i++)          /// only the last frame will have tailEndInts to process and that is done below
+            ++grayDistribution[A[i]];
+
+    }
+
+    if(tailEnds)
+    {
+        memcpy(A, startLoc, tailEnds);                         /// wait for the last transfer to complete
+        for(i=0; i<tailEnds; i++)                           /// scan the remaining data
+            ++grayDistribution[A[i]];        /// the last transferred frame
+    }
+
+    /// write back the results synchronously because there is nothing else to do
+    memcpy((args->g_result) + (gid * GRAYLEVELS * sizeof(int)), (void*)grayDistribution, GRAYLEVELS * sizeof(int));
+
+tidyUpAndExit:
+    /// tidy up
+    coprthr_tls_brk(baseAddr);
+
+#if TIMEIT == 2
+    STOPCLOCK0(clkStopTicks);
+    totalClockTicks = (clkStartTicks - clkStopTicks);
+    host_printf("%d: Total Ticks: %u, working ticks: %u waiting ticks: %u (%0.2f%%).\n", gid, totalClockTicks, (totalClockTicks - totalWaitTicks), totalWaitTicks, ((float)(totalClockTicks - totalWaitTicks) / (float)totalClockTicks) * 100.0);
+#endif // TIMEIT
+}
+
+#endif

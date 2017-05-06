@@ -8,6 +8,7 @@
 
 #include "egdma.h"
 
+#ifdef UseDMA
 void __entry k_map(map_args * args)
 {
 #if TIMEIT == 4
@@ -148,3 +149,106 @@ tidyUpAndExit:
     host_printf("%d: Total Ticks: %u, working ticks: %u waiting ticks: %u (%0.2f%%).\n", gid, totalClockTicks, (totalClockTicks - totalWaitTicks), totalWaitTicks, ((float)(totalClockTicks - totalWaitTicks) / (float)totalClockTicks) * 100.0);
 #endif // TIMEIT
 }
+
+#else
+void __entry k_map(map_args * args)
+{
+#if TIMEIT == 4
+    unsigned int clkStartTicks, waitStartTicks, clkStopTicks, waitStopTicks, totalClockTicks;
+    unsigned int totalWaitTicks = 0;
+    STARTCLOCK0(clkStartTicks);
+#endif // TIMEIT
+    unsigned int gid = coprthr_corenum();
+    unsigned int i;
+
+    register uintptr_t sp_val;      /// Thanks jar
+    __asm__ __volatile__(
+       "mov %[sp_val], sp"
+       : [sp_val] "=r" (sp_val)
+    );
+
+    /// how much space do we have
+    uint8_t map[GRAYLEVELS];                               /// local storage for the grey scale map
+    void * baseAddr = coprthr_tls_sbrk(0);                      /// begining of free space
+    uintptr_t baseLowOrder = (int)baseAddr & 0x0000FFFF;
+    unsigned int localSize = sp_val - baseLowOrder - 0x200;      /// amount of free space available in bytes   /// leave 512 bytes as a buffer
+//    unsigned int localSize = 0x2000;
+    uint8_t * A = (int *)coprthr_tls_sbrk(localSize);          /// 1st work area
+
+    /// how much data do we have to process
+    unsigned int imageSize = args->szImageBuffer;
+    unsigned int band = imageSize / ECORES;                     /// split the image up int 16 "bands" (or horizontal strips)
+    if (gid == LASTCORENUM)                                     /// =========================== this needs checking ==========================================
+        band += imageSize % ECORES;                             /// if it is not exactly divisible by 16 then add the remainder onto the workload for core 15
+    unsigned int workUnits = band / localSize;
+    unsigned int tailEnds = band % localSize;
+
+    /// where in the global buffer does it come from
+    void * startLoc = args->g_grayVals + (gid * band * sizeof(uint8_t));
+
+///    read in the map using memcpy (probably faster for a small amount of data)
+    memcpy(map, args->g_map, GRAYLEVELS);
+
+    while(workUnits--)
+    {
+
+#if TIMEIT == 4
+        STARTCLOCK1(waitStartTicks);  /// e_dma_wait does not idle - it is a wait loop
+#endif // TIMEIT
+        memcpy(A, startLoc, localSize);
+#if TIMEIT == 4
+        STOPCLOCK1(waitStopTicks);
+        totalWaitTicks += (waitStartTicks - waitStopTicks);
+#endif // TIMEIT
+
+        for(i=0; i<imageSize; i++)          /// only the last frame will have tailEndInts to process and that is done below
+            A[i] = map[A[i]];             /// replace the grey value in the image with it's mapped value
+
+#if TIMEIT == 4
+        STARTCLOCK1(waitStartTicks);  /// e_dma_wait does not idle - it is a wait loop
+#endif // TIMEIT
+        memcpy(startLoc, A, localSize);
+#if TIMEIT == 4
+        STOPCLOCK1(waitStopTicks);
+        totalWaitTicks += (waitStartTicks - waitStopTicks);
+#endif // TIMEIT
+
+        startLoc += imageSize;     /// transfer the next frame
+
+    }
+
+    if(tailEnds)
+    {
+#if TIMEIT == 4
+        STARTCLOCK1(waitStartTicks);  /// e_dma_wait does not idle - it is a wait loop
+#endif // TIMEIT
+        memcpy(A, startLoc, tailEnds);        /// copy int the tail end values
+#if TIMEIT == 4
+        STOPCLOCK1(waitStopTicks);
+        totalWaitTicks += (waitStartTicks - waitStopTicks);
+#endif // TIMEIT
+//        host_printf("%d\t%u inbound to 0x%x\n", gid, tailEnds, inbound);
+        for(i=0; i<tailEnds; i++)                                            /// scan the remaining data
+            A[i] = map[A[i]];
+#if TIMEIT == 4
+        STARTCLOCK1(waitStartTicks);  /// e_dma_wait does not idle - it is a wait loop
+#endif // TIMEIT
+        memcpy(startLoc, A, tailEnds);        /// copy back the results using E_DMA_0 because it is faster and there is nothing else left to do
+#if TIMEIT == 4
+        STOPCLOCK1(waitStopTicks);
+        totalWaitTicks += (waitStartTicks - waitStopTicks);
+#endif // TIMEIT
+//        host_printf("%d\t%u outbound from 0x%x\n", gid, tailEnds, inbound);
+    }
+
+tidyUpAndExit:
+    /// tidy up
+    coprthr_tls_brk(baseAddr);
+
+#if TIMEIT == 4
+    STOPCLOCK0(clkStopTicks);
+    totalClockTicks = (clkStartTicks - clkStopTicks);
+    host_printf("%d: Total Ticks: %u, working ticks: %u waiting ticks: %u (%0.2f%%).\n", gid, totalClockTicks, (totalClockTicks - totalWaitTicks), totalWaitTicks, ((float)(totalClockTicks - totalWaitTicks) / (float)totalClockTicks) * 100.0);
+#endif // TIMEIT
+}
+#endif  // UseDMA

@@ -11,7 +11,7 @@
 #ifdef UseDMA
 void __entry k_map(map_args * args)
 {
-#if TIMEIT == 4
+#ifdef TIMEEPIP
     unsigned int clkStartTicks, waitStartTicks, clkStopTicks, waitStopTicks, totalClockTicks;
     unsigned int totalWaitTicks = 0;
     STARTCLOCK0(clkStartTicks);
@@ -26,17 +26,17 @@ void __entry k_map(map_args * args)
     );
 
     /// how much space do we have
-    uint8_t map[GRAYLEVELS];                               /// local storage for the grey scale map
+    uint8_t map[GRAYLEVELS];                                    /// local storage for the grey scale map
     void * baseAddr = coprthr_tls_sbrk(0);                      /// begining of free space
     uintptr_t baseLowOrder = (int)baseAddr & 0x0000FFFF;
     unsigned int localSize = sp_val - baseLowOrder - 0x200;      /// amount of free space available in bytes   /// leave 512 bytes as a buffer
 //    unsigned int localSize = 0x2000;
-    unsigned int workArea = localSize / 2;                /// divide the available space into 2 work areas A and B
+    unsigned int workArea = localSize / 2;                      /// divide the available space into 2 work areas A and B
                  workArea -= (workArea % 8);                    /// and make them divisible by 8
-    uint8_t * A = (int *)coprthr_tls_sbrk(workArea);          /// 1st work area
-    uint8_t * B = (int *)coprthr_tls_sbrk(workArea);          /// 2nd work area
-    uint8_t * inbound;                                     /// A or B
-    uint8_t * outbound;                                       /// B or A
+    uint8_t * A = (int *)coprthr_tls_sbrk(workArea);            /// 1st work area
+    uint8_t * B = (int *)coprthr_tls_sbrk(workArea);            /// 2nd work area
+    uint8_t * inbound;                                          /// A or B
+    uint8_t * outbound;                                         /// B or A
     int processingA;
     e_dma_desc_t dmaDescInbound, dmaDescOutbound;
 
@@ -57,30 +57,30 @@ void __entry k_map(map_args * args)
 
     /// set up the DMA dexcriptors once and then only change the destination in the loop
     e_dma_set_desc(E_DMA_1,                                     /// outbound data channel on the interuptable channel
-                    E_DMA_DWORD | E_DMA_ENABLE | E_DMA_MASTER,   /// config
-                    0x0,                                          /// next descriptor (there isn't one)
-                    8,                                /// inner stride source
-                    8,                                /// inner stride destination
-                    workArea / 8,                                 /// inner count of data items to transfer (one row)
+                    E_DMA_DWORD | E_DMA_ENABLE | E_DMA_MASTER,  /// config
+                    0x0,                                        /// next descriptor (there isn't one)
+                    8,                                          /// inner stride source
+                    8,                                          /// inner stride destination
+                    workArea / 8,                               /// inner count of data items to transfer (one row)
                     1,                                          /// outer count (1 we are doing 1D dma)
                     0,                                          /// outer stride source N/A in 1D dma
                     0,                                          /// outer stride destination N/A in 1D dma
-                    0x0,                                /// starting location source will change every iteration
-                    0x0,                                 /// starting location destination will also change on every iteration
+                    0x0,                                        /// starting location source will change every iteration
+                    0x0,                                        /// starting location destination will also change on every iteration
                     &dmaDescOutbound);                          /// dma descriptor for outbound traffic bu use it for transferring the map for now
 
-    e_dma_set_desc(E_DMA_0,                                     /// inbound channel on faster channel
-                    E_DMA_DWORD | E_DMA_ENABLE | E_DMA_MASTER,   /// config
-                    0x0,                                          /// next descriptor (there isn't one)
-                    8,                                /// inner stride source
-                    8,                                /// inner stride destination
-                    workArea / 8,                              /// inner count of data items to transfer (one row)
-                    1,                                          /// outer count (1 we are doing 1D dma)
-                    0,                                          /// outer stride source N/A in 1D dma
-                    0,                                          /// outer stride destination N/A in 1D dma
-                    0x0,                                   ///  source location will change
-                    0x0,                    /// destination location will change
-                    &dmaDescInbound);                                  /// dma descriptor for inbound traffic
+    e_dma_set_desc(E_DMA_0,                                     /// inbound channel
+                    E_DMA_DWORD | E_DMA_ENABLE | E_DMA_MASTER,
+                    0x0,
+                    8,
+                    8,
+                    workArea / 8,
+                    1,
+                    0,
+                    0,
+                    0x0,
+                    0x0,
+                    &dmaDescInbound);                             /// dma descriptor for inbound traffic
 
 
     inbound = A;        /// transfer first frame to A ready for processing
@@ -93,14 +93,14 @@ void __entry k_map(map_args * args)
 
         e_dma_start(&dmaDescInbound, E_DMA_0); /// start the first inbound transfer
 
-//#if TIMEIT == 4
-//        STARTCLOCK1(waitStartTicks);  /// e_dma_wait does not idle - it is a wait loop
-//#endif // TIMEIT
+#ifdef TIMEEPIP
+        STARTCLOCK1(waitStartTicks);  /// e_dma_wait does not idle - it is a wait loop
+#endif // TIMEIT
         e_dma_wait(E_DMA_0);
-//#if TIMEIT == 4
-//        STOPCLOCK1(waitStopTicks);
-//        totalWaitTicks += (waitStartTicks - waitStopTicks);
-//#endif // TIMEIT
+#ifdef TIMEEPIP
+        STOPCLOCK1(waitStopTicks);
+        totalWaitTicks += (waitStartTicks - waitStopTicks);
+#endif // TIMEIT
 
         for(i=0; i<workArea; i++)          /// only the last frame will have tailEndInts to process and that is done below
             inbound[i] = map[inbound[i]];             /// replace the grey value in the image with it's mapped value
@@ -129,31 +129,52 @@ void __entry k_map(map_args * args)
 
     if(tailEnds)
     {
+#ifdef TIMEEPIP
+        STARTCLOCK1(waitStartTicks);  /// e_dma_wait does not idle - it is a wait loop
+#endif // TIMEIT
         e_dma_copy((void*)inbound, startLoc, tailEnds * sizeof(uint8_t));        /// copy int the tail end values
+#ifdef TIMEEPIP
+        STOPCLOCK1(waitStopTicks);
+        totalWaitTicks += (waitStartTicks - waitStopTicks);
+#endif // TIMEIT
 //        host_printf("%d\t%u inbound to 0x%x\n", gid, tailEnds, inbound);
         for(i=0; i<tailEnds; i++)                                            /// scan the remaining data
             inbound[i] = map[inbound[i]];
+#ifdef TIMEEPIP
+        STARTCLOCK1(waitStartTicks);  /// e_dma_wait does not idle - it is a wait loop
+#endif // TIMEIT
         e_dma_copy(startLoc, (void*)inbound, tailEnds * sizeof(uint8_t));        /// copy back the results using E_DMA_0 because it is faster and there is nothing else left to do
+#ifdef TIMEEPIP
+        STOPCLOCK1(waitStopTicks);
+        totalWaitTicks += (waitStartTicks - waitStopTicks);
+#endif // TIMEIT
 //        host_printf("%d\t%u outbound from 0x%x\n", gid, tailEnds, inbound);
     }
+#ifdef TIMEEPIP
+        STARTCLOCK1(waitStartTicks);  /// e_dma_wait does not idle - it is a wait loop
+#endif // TIMEIT
     e_dma_wait(E_DMA_1);    /// make sure the last outbound transfer on DMA_1 is complete before exiting
+#ifdef TIMEEPIP
+        STOPCLOCK1(waitStopTicks);
+        totalWaitTicks += (waitStartTicks - waitStopTicks);
+#endif // TIMEIT
 
 //    printf("%d: exiting\n", gid);
 tidyUpAndExit:
     /// tidy up
     coprthr_tls_brk(baseAddr);
 
-#if TIMEIT == 4
+#ifdef TIMEEPIP
     STOPCLOCK0(clkStopTicks);
     totalClockTicks = (clkStartTicks - clkStopTicks);
-    host_printf("%d: Total Ticks: %u, working ticks: %u waiting ticks: %u (%0.2f%%).\n", gid, totalClockTicks, (totalClockTicks - totalWaitTicks), totalWaitTicks, ((float)(totalClockTicks - totalWaitTicks) / (float)totalClockTicks) * 100.0);
+    host_printf("Map\tDMA\t%d\tTotal Ticks:\t%u\tworking ticks:\t%u\twaiting ticks:\t%u\t(%0.2f%%)\n", gid, totalClockTicks, (totalClockTicks - totalWaitTicks), totalWaitTicks, ((float)totalWaitTicks) / ((float)totalClockTicks) * 100.0);
 #endif // TIMEIT
 }
 
 #else
 void __entry k_map(map_args * args)
 {
-#if TIMEIT == 4
+#ifdef TIMEEPIP
     unsigned int clkStartTicks, waitStartTicks, clkStopTicks, waitStopTicks, totalClockTicks;
     unsigned int totalWaitTicks = 0;
     STARTCLOCK0(clkStartTicks);
@@ -172,7 +193,7 @@ void __entry k_map(map_args * args)
     void * baseAddr = coprthr_tls_sbrk(0);                      /// begining of free space
     uintptr_t baseLowOrder = (int)baseAddr & 0x0000FFFF;
     unsigned int localSize = sp_val - baseLowOrder - 0x200;      /// amount of free space available in bytes   /// leave 512 bytes as a buffer
-//    unsigned int localSize = 0x2000;
+//    unsigned int localSize = 0x4000;
     uint8_t * A = (int *)coprthr_tls_sbrk(localSize);          /// 1st work area
 
     /// how much data do we have to process
@@ -189,66 +210,67 @@ void __entry k_map(map_args * args)
 ///    read in the map using memcpy (probably faster for a small amount of data)
     memcpy(map, args->g_map, GRAYLEVELS);
 
+//host_printf("%d: localSize: 0x%x workUnits: %u tailEnds: %u\n", gid, localSize, workUnits, tailEnds);
     while(workUnits--)
     {
+//host_printf("%d: startLoc: 0x%x workUnits: %u\n", gid, startLoc, workUnits);
 
-#if TIMEIT == 4
+#ifdef TIMEEPIP
         STARTCLOCK1(waitStartTicks);  /// e_dma_wait does not idle - it is a wait loop
 #endif // TIMEIT
         memcpy(A, startLoc, localSize);
-#if TIMEIT == 4
+#ifdef TIMEEPIP
         STOPCLOCK1(waitStopTicks);
         totalWaitTicks += (waitStartTicks - waitStopTicks);
 #endif // TIMEIT
 
-        for(i=0; i<imageSize; i++)          /// only the last frame will have tailEndInts to process and that is done below
+        for(i=0; i<localSize; i++)          /// only the last frame will have tailEndInts to process and that is done below
             A[i] = map[A[i]];             /// replace the grey value in the image with it's mapped value
 
-#if TIMEIT == 4
+#ifdef TIMEEPIP
         STARTCLOCK1(waitStartTicks);  /// e_dma_wait does not idle - it is a wait loop
 #endif // TIMEIT
         memcpy(startLoc, A, localSize);
-#if TIMEIT == 4
+#ifdef TIMEEPIP
         STOPCLOCK1(waitStopTicks);
         totalWaitTicks += (waitStartTicks - waitStopTicks);
 #endif // TIMEIT
 
-        startLoc += imageSize;     /// transfer the next frame
+        startLoc += localSize;     /// transfer the next frame
 
     }
+//host_printf("%d: startLoc: 0x%x tailEnds: %u\n", gid, startLoc, tailEnds);
 
     if(tailEnds)
     {
-#if TIMEIT == 4
+#ifdef TIMEEPIP
         STARTCLOCK1(waitStartTicks);  /// e_dma_wait does not idle - it is a wait loop
 #endif // TIMEIT
         memcpy(A, startLoc, tailEnds);        /// copy int the tail end values
-#if TIMEIT == 4
+#ifdef TIMEEPIP
         STOPCLOCK1(waitStopTicks);
         totalWaitTicks += (waitStartTicks - waitStopTicks);
 #endif // TIMEIT
-//        host_printf("%d\t%u inbound to 0x%x\n", gid, tailEnds, inbound);
         for(i=0; i<tailEnds; i++)                                            /// scan the remaining data
             A[i] = map[A[i]];
-#if TIMEIT == 4
-        STARTCLOCK1(waitStartTicks);  /// e_dma_wait does not idle - it is a wait loop
+#ifdef TIMEEPIP
+        STARTCLOCK1(waitStartTicks);
 #endif // TIMEIT
-        memcpy(startLoc, A, tailEnds);        /// copy back the results using E_DMA_0 because it is faster and there is nothing else left to do
-#if TIMEIT == 4
+        memcpy(startLoc, A, tailEnds);
+#ifdef TIMEEPIP
         STOPCLOCK1(waitStopTicks);
         totalWaitTicks += (waitStartTicks - waitStopTicks);
 #endif // TIMEIT
-//        host_printf("%d\t%u outbound from 0x%x\n", gid, tailEnds, inbound);
     }
 
 tidyUpAndExit:
     /// tidy up
     coprthr_tls_brk(baseAddr);
 
-#if TIMEIT == 4
+#ifdef TIMEEPIP
     STOPCLOCK0(clkStopTicks);
     totalClockTicks = (clkStartTicks - clkStopTicks);
-    host_printf("%d: Total Ticks: %u, working ticks: %u waiting ticks: %u (%0.2f%%).\n", gid, totalClockTicks, (totalClockTicks - totalWaitTicks), totalWaitTicks, ((float)(totalClockTicks - totalWaitTicks) / (float)totalClockTicks) * 100.0);
+    host_printf("Map\tmemcpy\t%d\tTotal Ticks:\t%u\tworking ticks:\t%u\twaiting ticks:\t%u\t(%0.2f%%)\n", gid, totalClockTicks, (totalClockTicks - totalWaitTicks), totalWaitTicks, ((float)totalWaitTicks) / ((float)totalClockTicks) * 100.0);
 #endif // TIMEIT
 }
 #endif  // UseDMA

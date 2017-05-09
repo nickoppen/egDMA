@@ -11,7 +11,7 @@
 #ifdef UseDMA
 void __entry k_scan(scan_args * args)
 {
-#if TIMEIT == 2
+#ifdef TIMEEPIP
     unsigned int clkStartTicks, waitStartTicks, clkStopTicks, waitStopTicks, totalClockTicks;
     unsigned int totalWaitTicks = 0;
     STARTCLOCK0(clkStartTicks);
@@ -87,11 +87,11 @@ void __entry k_scan(scan_args * args)
 
     while(workUnits--)
     {
-#if TIMEIT == 2
+#ifdef TIMEEPIP
         STARTCLOCK1(waitStartTicks);  /// e_dma_wait does not idle - it is a wait loop
 #endif // TIMEIT
         e_dma_wait(currentChannel);     /// wait for the current transfer to complete
-#if TIMEIT == 2
+#ifdef TIMEEPIP
         STOPCLOCK1(waitStopTicks);
         totalWaitTicks += (waitStartTicks - waitStopTicks);
 #endif // TIMEIT
@@ -142,16 +142,16 @@ tidyUpAndExit:
     /// tidy up
     coprthr_tls_brk(baseAddr);
 
-#if TIMEIT == 2
+#ifdef TIMEEPIP
     STOPCLOCK0(clkStopTicks);
     totalClockTicks = (clkStartTicks - clkStopTicks);
-    host_printf("%d: Total Ticks: %u, working ticks: %u waiting ticks: %u (%0.2f%%).\n", gid, totalClockTicks, (totalClockTicks - totalWaitTicks), totalWaitTicks, ((float)(totalClockTicks - totalWaitTicks) / (float)totalClockTicks) * 100.0);
+    host_printf("Scan\tDMA\t%d\tTotal Ticks:\t%u\tworking ticks:\t%u\twaiting ticks:\t%u\t(%0.2f%%)\n", gid, totalClockTicks, (totalClockTicks - totalWaitTicks), totalWaitTicks, ((float)totalWaitTicks) / ((float)totalClockTicks) * 100.0);
 #endif // TIMEIT
 }
 #else
 void __entry k_scan(scan_args * args)
 {
-#if TIMEIT == 2
+#ifdef TIMEEPIP
     unsigned int clkStartTicks, waitStartTicks, clkStopTicks, waitStopTicks, totalClockTicks;
     unsigned int totalWaitTicks = 0;
     STARTCLOCK0(clkStartTicks);
@@ -188,11 +188,11 @@ void __entry k_scan(scan_args * args)
 
     while(workUnits--)
     {
-#if TIMEIT == 2
+#ifdef TIMEEPIP
         STARTCLOCK1(waitStartTicks);  /// e_dma_wait does not idle - it is a wait loop
 #endif // TIMEIT
         memcpy(A, startLoc, localSize);
-#if TIMEIT == 2
+#ifdef TIMEEPIP
         STOPCLOCK1(waitStopTicks);
         totalWaitTicks += (waitStartTicks - waitStopTicks);
 #endif // TIMEIT
@@ -218,10 +218,10 @@ tidyUpAndExit:
     /// tidy up
     coprthr_tls_brk(baseAddr);
 
-#if TIMEIT == 2
+#ifdef TIMEEPIP
     STOPCLOCK0(clkStopTicks);
     totalClockTicks = (clkStartTicks - clkStopTicks);
-    host_printf("%d: Total Ticks: %u, working ticks: %u waiting ticks: %u (%0.2f%%).\n", gid, totalClockTicks, (totalClockTicks - totalWaitTicks), totalWaitTicks, ((float)(totalClockTicks - totalWaitTicks) / (float)totalClockTicks) * 100.0);
+    host_printf("Scan\tmemcpy\t%d\tTotal Ticks:\t%u\tworking ticks:\t%u\twaiting ticks:\t%u\t(%0.2f%%)\n", gid, totalClockTicks, (totalClockTicks - totalWaitTicks), totalWaitTicks, ((float)totalWaitTicks) / ((float)totalClockTicks) * 100.0);
 #endif // TIMEIT
 }
 

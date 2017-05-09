@@ -43,6 +43,9 @@ int main(int argc, char** argv)
 /// followed by the comma separated gray scale values.
 /// Image lines are separated by a ;
 
+for (i=0;i<argc;i++)
+    printf("%d: %s\n", i, argv[i]);
+
     FILE * grayFile;
     int outFileArg = 0;      /// which command line arguement contain the string for the output file
 
@@ -113,7 +116,7 @@ int main(int argc, char** argv)
     }
     close(grayFile);
 
-#if TIMEIT == 1
+#ifdef TIMEHOST
     clock_t hostTime = clock();
 
     for(i=0;i<height*width;i++)
@@ -169,9 +172,13 @@ int main(int argc, char** argv)
         }
     }
 
-#if TIMEIT == 1
+#ifdef TIMEHOST
     eTime = clock() - eTime ;
-    printf("\nThe scan on the host took: %ld milliseconds. The Epiphany took: %ld milliseconds\n", hostTime, eTime);
+    #ifdef UseDMA
+    printf("\nThe Scan on the host took: %ld milliseconds. Using DMA the Epiphany took: %ld milliseconds (%0.2f%%)\n", hostTime, eTime, ((float)eTime)/((float)hostTime) * 100);
+    #else
+    printf("\nThe Scan on the host took: %ld milliseconds. Using memcpy the Epiphany took: %ld milliseconds (%0.2f%%)\n", hostTime, eTime, ((float)eTime)/((float)hostTime) * 100);
+    #endif // UseDMA
 #endif // TIMEIT
 
 calcCumFreq:
@@ -194,7 +201,14 @@ calcCumFreq:
         map[j] = i;
     }
 
-#if TIMEIT == 1
+//    for(j=0;j<GRAYLEVELS; j++)
+//        printf("%u ", combinedResults[j]);
+//    printf("\n");
+//    for(j=0;j<GRAYLEVELS; j++)
+//        printf("%u ", map[j]);
+//    printf("\n");
+
+#ifdef TIMEHOST
 
     uint8_t cpGrayVals[szImageBuffer];                                 /// copy the image for timing
     for (j=0;j<szImageBuffer;j++)
@@ -229,9 +243,13 @@ calcCumFreq:
     coprthr_dread(dd, eGrayVals, 0, (void*)equalGrey, szImageBuffer, COPRTHR_E_WAIT);
 
 
-#if TIMEIT == 1
+#ifdef TIMEHOST
     eTime = clock() - eTime;
-    printf("\nThe map on the host took: %ld milliseconds. The Epiphany took: %ld milliseconds\n", hostTime, eTime);
+    #ifdef UseDMA
+    printf("\nThe map on the host took: %ld milliseconds. Using DMA the Epiphany took: %ld milliseconds (%0.2f%%)\n", hostTime, eTime, ((float)eTime)/((float)hostTime) * 100);
+    #else
+    printf("\nThe map on the host took: %ld milliseconds. Using memcpy the Epiphany took: %ld milliseconds (%0.2f%%)\n", hostTime, eTime, ((float)eTime)/((float)hostTime) * 100);
+    #endif // UseDMA
 #endif // TIMEIT
 
 /// Output the equalised gray values into a new file
@@ -242,7 +260,7 @@ calcCumFreq:
 
         if(!grayFile)
         {
-            printf("Something wrong with the input gray file...\n");
+            printf("%s failed to open the otuput file: %s...\n", argv[0], argv[outFileArg]);
             exit(-1);
         }
     }

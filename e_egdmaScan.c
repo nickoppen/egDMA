@@ -97,7 +97,7 @@ host_printf("Core:%d, iteration: %u, startLoc: 0x%x, src: 0x%x, dst: 0x%x\n", gi
         STOPCLOCK1(waitStopTicks);
         totalWaitTicks += (waitStartTicks - waitStopTicks);
 #endif // TIMEIT
-//bebug = beingTransferred;
+bebug = beingTransferred;
 //phalt();
 host_printf("Core:%d first 8, last two: %u, %u, %u, %u, %u, %u, %u, %u, %u, %u\n", gid, beingTransferred[0], beingTransferred[1], beingTransferred[2], beingTransferred[3], beingTransferred[4], beingTransferred[5], beingTransferred[6], beingTransferred[7], beingTransferred[workArea - 2], beingTransferred[workArea - 1]);
 

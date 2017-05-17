@@ -4,10 +4,10 @@
 #define ECORES 16    /// Not great - Should be a function call
 #define LASTCORENUM 15  /// the last core does the remainder at the end of the file
 #define GRAYLEVELS 256
-#define TIMEHOST        /// wall clock host  v Epiphany
+//#define TIMEHOST        /// wall clock host  v Epiphany
 //#define TIMEEPIP      /// Epiphany internal
 
-//#define UseDMA 1
+#define UseDMA
 
 typedef struct
 {

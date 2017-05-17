@@ -43,9 +43,6 @@ int main(int argc, char** argv)
 /// followed by the comma separated gray scale values.
 /// Image lines are separated by a ;
 
-for (i=0;i<argc;i++)
-    printf("%d: %s\n", i, argv[i]);
-
     FILE * grayFile;
     int outFileArg = 0;      /// which command line arguement contain the string for the output file
 
@@ -87,15 +84,15 @@ for (i=0;i<argc;i++)
     default:
         USAGE;
     }
-
+printf("reading\n");
     fscanf(grayFile, "%s %d", txt, &width);
     fscanf(grayFile, "%s %d", txt, &height);
 
     /// Allocate space to store the gray scale information
     sizeInBytes = width * height * sizeof(uint8_t);
     szImageBuffer = sizeInBytes;
-    if (sizeInBytes % 8)            /// if the modulus is non-zero
-        szImageBuffer += 8;         /// add another 8 bytes
+    if (sizeInBytes % 8)
+        szImageBuffer += (8 - (sizeInBytes % 8));  /// make the buffer a number dividible by 8
     grayVals = malloc(szImageBuffer);
 //    debugGrey = malloc(sizeInBytes);
 
@@ -116,6 +113,10 @@ for (i=0;i<argc;i++)
     }
     close(grayFile);
 
+//for (i=szImageBuffer-16;i<szImageBuffer;i++)
+//    printf("%u, ", grayVals[i]);
+//printf("\nsize: %u, buffersize: %u\n", sizeInBytes, szImageBuffer);
+
 #ifdef TIMEHOST
     clock_t hostTime = clock();
 
@@ -131,6 +132,7 @@ for (i=0;i<argc;i++)
 
     clock_t eTime = clock();        /// start the epiphany clock
 #endif // TIMEIT
+printf("acc set up\n");
 
     /// Open the co processor
     int dd = coprthr_dopen(COPRTHR_DEVICE_E32,COPRTHR_O_THREAD);
@@ -152,6 +154,7 @@ for (i=0;i<argc;i++)
     s_args.g_result = (void*)coprthr_memptr(eCoreResults, 0);
     s_args.g_grayVals = (void*)coprthr_memptr(eGrayVals, 0);
 //    s_args.debug = debug;
+printf("calling scan\n");
 
 	coprthr_program_t prg = coprthr_cc_read_bin("./egdmaScan.e32", 0);
     coprthr_sym_t krn = coprthr_getsym(prg, "k_scan");
@@ -160,6 +163,7 @@ for (i=0;i<argc;i++)
 
     coprthr_dwait(dd);
     coprthr_dread(dd, eCoreResults, 0, coreResults, ECORES * GRAYLEVELS * sizeof(int), COPRTHR_E_WAIT);
+printf("combining\n");
 
     /// combind the individual counts from the cores
     k = 0;
@@ -175,9 +179,9 @@ for (i=0;i<argc;i++)
 #ifdef TIMEHOST
     eTime = clock() - eTime ;
     #ifdef UseDMA
-    printf("\nThe Scan on the host took: %ld milliseconds. Using DMA the Epiphany took: %ld milliseconds (%0.2f%%)\n", hostTime, eTime, ((float)eTime)/((float)hostTime) * 100);
+    printf("Scan\tDMA\thost\t%ld\tEpiphany\t%ld\n", hostTime, eTime);
     #else
-    printf("\nThe Scan on the host took: %ld milliseconds. Using memcpy the Epiphany took: %ld milliseconds (%0.2f%%)\n", hostTime, eTime, ((float)eTime)/((float)hostTime) * 100);
+    printf("Scan\tmemcpy\thost\t%ld\tEpiphany\t%ld\n", hostTime, eTime);
     #endif // UseDMA
 #endif // TIMEIT
 
@@ -246,9 +250,9 @@ calcCumFreq:
 #ifdef TIMEHOST
     eTime = clock() - eTime;
     #ifdef UseDMA
-    printf("\nThe map on the host took: %ld milliseconds. Using DMA the Epiphany took: %ld milliseconds (%0.2f%%)\n", hostTime, eTime, ((float)eTime)/((float)hostTime) * 100);
+    printf("Map\thost\t%ld\tDMA\tEpiphany\t%ld\n", hostTime, eTime);
     #else
-    printf("\nThe map on the host took: %ld milliseconds. Using memcpy the Epiphany took: %ld milliseconds (%0.2f%%)\n", hostTime, eTime, ((float)eTime)/((float)hostTime) * 100);
+    printf("Map\tmemcpy\thost\t%ld\tEpiphany\t%ld\n", hostTime, eTime);
     #endif // UseDMA
 #endif // TIMEIT
 

@@ -1,13 +1,12 @@
 #include <coprthr.h>
 #include <coprthr_mpi.h>
-#if TIMEIT == EPIPHANY
 #include "timer.h"
-#endif // TIMEIT
 #include "esyscall.h"
 #include <host_stdio.h>
 
 #include "egdma.h"
 
+uint8_t * bebug;
 #ifdef UseDMA
 void __entry k_scan(scan_args * args)
 {
@@ -31,13 +30,14 @@ void __entry k_scan(scan_args * args)
     /// how much space do we have
     void * baseAddr = coprthr_tls_sbrk(0);                      /// begining of free space
     uintptr_t baseLowOrder = (int)baseAddr & 0x0000FFFF;
-    unsigned int localSize = sp_val - baseLowOrder - 0x200;      /// amount of free space available in bytes   /// leave 512 bytes as a buffer
+    unsigned int localSize = sp_val - baseLowOrder - 0x200;     /// amount of free space available in bytes   /// leave 512 bytes as a buffer
+//    unsigned int localSize = 0x2000;
     unsigned int workArea = (localSize / 2);                    /// split the avalable memory into two chunks
                  workArea -= (workArea % 8);                    /// and make them divisible by 8
-    uint8_t * A = (int *)coprthr_tls_sbrk(workArea);          /// 1st chunks
-    uint8_t * B = (int *)coprthr_tls_sbrk(workArea);          /// 2nd chunks
-    uint8_t * beingTransferred;                                     /// A or B
-    uint8_t * beingProcessed;                                       /// B or A
+    uint8_t * A = (int *)coprthr_tls_sbrk(workArea);            /// 1st chunks
+    uint8_t * B = (int *)coprthr_tls_sbrk(workArea);            /// 2nd chunks
+    uint8_t * beingTransferred;                                 /// A or B
+    uint8_t * beingProcessed;                                   /// B or A
     e_dma_id_t  currentChannel;                                 /// E_DMA_0 or E_DMA_1
     int processingA = (gid % 2);                                /// odd numbered cores start with frame A while transferring data into B; odd numbered cores start on B
     e_dma_desc_t dmaDesc;
@@ -49,15 +49,15 @@ void __entry k_scan(scan_args * args)
         band += imageSize % ECORES;                             /// if it is not exactly divisible by 16 then add the remainder onto the workload for core 15
     unsigned int workUnits = band / workArea;
     unsigned int tailEnds = band % workArea;
-    unsigned int trxCount;                                      /// frames or tailEndCount
+    unsigned int trxCount;                                      /// the number of DWORDS to transfer every DMA call
 
     /// where in the global buffer does it come from
     void * startLoc = args->g_grayVals + (gid * band * sizeof(uint8_t));
 
     if(processingA)
     {
-        beingTransferred = A;        /// transfer first frame to A ready for processing
-        currentChannel = E_DMA_0;   /// on E_DMA_0
+        beingTransferred = A;                                   /// transfer first frame to A ready for processing
+        currentChannel = E_DMA_0;                               /// on E_DMA_0
     }
     else
     {
@@ -72,9 +72,9 @@ void __entry k_scan(scan_args * args)
 
     e_dma_set_desc(currentChannel,                              /// channel
                     E_DMA_DWORD | E_DMA_ENABLE | E_DMA_MASTER,  /// config
-                    0x0,                                          /// next descriptor (there isn't one)
-                    8,                                     /// inner stride source (sizeof(DWORD))
-                    8,                                     /// inner stride destination
+                    0x0,                                        /// next descriptor (there isn't one)
+                    8,                                          /// inner stride source (sizeof(DWORD))
+                    8,                                          /// inner stride destination
                     trxCount,                                   /// inner count of data items to transfer (one row)
                     1,                                          /// outer count (1 we are doing 1D dma)
                     0,                                          /// outer stride source N/A in 1D dma
@@ -83,23 +83,28 @@ void __entry k_scan(scan_args * args)
                     (void*)beingTransferred,                    /// starting location destination
                     &dmaDesc);                                  /// dma descriptor
 
+host_printf("Core:%d, localSize: %u, workArea: %u, imageSize: %u, band: %u, wornUnits: %u, tailEnds; %u, startLoc: 0x%x, trxCount: %u, 0x%x, A: 0x%x, B:0x%x\n", gid, localSize, workArea, imageSize, band, workUnits, tailEnds, startLoc, trxCount, dmaDesc.count, A, B);
     e_dma_start(&dmaDesc, currentChannel);
 
     while(workUnits--)
     {
+host_printf("Core:%d, iteration: %u, startLoc: 0x%x, src: 0x%x, dst: 0x%x\n", gid, workUnits+1, startLoc, dmaDesc.src_addr, dmaDesc.dst_addr);
 #ifdef TIMEEPIP
-        STARTCLOCK1(waitStartTicks);  /// e_dma_wait does not idle - it is a wait loop
+        STARTCLOCK1(waitStartTicks);                            /// e_dma_wait does not idle - it is a wait loop
 #endif // TIMEIT
-        e_dma_wait(currentChannel);     /// wait for the current transfer to complete
+        e_dma_wait(currentChannel);                             /// wait for the current transfer to complete
 #ifdef TIMEEPIP
         STOPCLOCK1(waitStopTicks);
         totalWaitTicks += (waitStartTicks - waitStopTicks);
 #endif // TIMEIT
+//bebug = beingTransferred;
+//phalt();
+host_printf("Core:%d first 8, last two: %u, %u, %u, %u, %u, %u, %u, %u, %u, %u\n", gid, beingTransferred[0], beingTransferred[1], beingTransferred[2], beingTransferred[3], beingTransferred[4], beingTransferred[5], beingTransferred[6], beingTransferred[7], beingTransferred[workArea - 2], beingTransferred[workArea - 1]);
 
         if(processingA)
         {
-            beingTransferred = B;       /// transfer next frame to B
-            currentChannel = E_DMA_1;   /// on E_DMA_1
+            beingTransferred = B;                               /// transfer next frame to B
+            currentChannel = E_DMA_1;                           /// on E_DMA_1
             beingProcessed = A;
         }
         else
@@ -109,34 +114,49 @@ void __entry k_scan(scan_args * args)
             beingProcessed = B;
         }
 
-        if(workUnits)                   /// i.e. there are  more full frames to transfer
-            trxCount = workArea / 8;
-        else                            /// there is only the tail end left
-            trxCount = tailEnds / 8;
+        if(workUnits == 0)                                      /// i.e. there are  more full frames to transfer
+            trxCount = tailEnds / 8;                            /// there is only the tail end left
 
-        startLoc += workArea;           /// transfer the next frame
+        startLoc += workArea;                                   /// transfer the next frame
 
-        dmaDesc.count = 0x00010000 | trxCount;      /// outer loop count = 1 (high order) inner loop count = trxCount (low order)
+        /// Warning: channel should be idle before making changes to the descriptor
+        dmaDesc.count = 0x00010000 | trxCount;                  /// outer loop count = 1 (high order) inner loop count = trxCount (low order)
         dmaDesc.src_addr = startLoc;
         dmaDesc.dst_addr = (void*)beingTransferred;
 
         e_dma_start(&dmaDesc, currentChannel);
 
-        for(i=0; i<workArea; i++)          /// only the last frame will have tailEndInts to process and that is done below
+        for(i=0; i<workArea; i++)                               /// only the last frame will have tailEndInts to process and that is done below
             ++grayDistribution[beingProcessed[i]];
 
-        processingA = !processingA;             /// swap buffers
+        processingA = !processingA;                             /// swap buffers and channels
     }
+host_printf("Core:%d, tailends: %u\n", gid, tailEnds);
 
+#ifdef TIMEEPIP
+        STARTCLOCK1(waitStartTicks);                            /// e_dma_wait does not idle - it is a wait loop
+#endif // TIMEIT
+        e_dma_wait(currentChannel);                             /// wait for the last transfer to complete
+#ifdef TIMEEPIP
+        STOPCLOCK1(waitStopTicks);
+        totalWaitTicks += (waitStartTicks - waitStopTicks);
+#endif // TIMEIT
     if(tailEnds)
     {
-        e_dma_wait(currentChannel);                         /// wait for the last transfer to complete
-        for(i=0; i<tailEnds; i++)                           /// scan the remaining data
-            ++grayDistribution[beingTransferred[i]];        /// the last transferred frame
+        for(i=0; i<tailEnds; i++)                               /// scan the remaining data
+            ++grayDistribution[beingTransferred[i]];            /// the last transferred frame
     }
 
+
+#ifdef TIMEEPIP
+        STARTCLOCK1(waitStartTicks);
+#endif // TIMEIT
     /// write back the results synchronously because there is nothing else to do
     e_dma_copy((args->g_result) + (gid * GRAYLEVELS * sizeof(int)), (void*)grayDistribution, GRAYLEVELS * sizeof(int));
+#ifdef TIMEEPIP
+        STOPCLOCK1(waitStopTicks);
+        totalWaitTicks += (waitStartTicks - waitStopTicks);
+#endif // TIMEIT
 
 tidyUpAndExit:
     /// tidy up

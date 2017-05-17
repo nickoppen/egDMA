@@ -7,6 +7,7 @@
 #include <host_stdio.h>
 
 #include "egdma.h"
+#define UseDMA
 
 #ifdef UseDMA
 void __entry k_map(map_args * args)

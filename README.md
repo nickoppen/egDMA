@@ -8,7 +8,7 @@ This program takes a text file of gray values from an image and performs histogr
 Create a text file of your uncompressed grayscale image using gray2text.x in the grayConvert repository. The csv files in this repository are examples of converted images.
 
 ```
-$./egdma <text file> -o <output text file>
+$./egdma.x <input text file> -o <output text file>
 ```
 
 Reconvert the image to the equalised verions using text2gray.x in the grayConvert repository.

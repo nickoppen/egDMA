@@ -16,7 +16,7 @@ int main(int argc, char** argv)
 
     int width, height;                                  /// the dimensions of the image
     uint8_t * grayVals;                                 /// allocated after the width and height are known
-    uint8_t * equalGrey;                                /// the equalised gray values
+    uint8_t * equalGray;                                /// the equalised gray values
     uint8_t * pGreyVals;                                /// an index into the grayVals table
     char txt[10];                                       /// text input buffer
     int newVal;                                         /// integer input buffer
@@ -93,12 +93,23 @@ printf("reading\n");
     szImageBuffer = sizeInBytes;
     if (sizeInBytes % 8)
         szImageBuffer += (8 - (sizeInBytes % 8));  /// make the buffer a number dividible by 8
-    grayVals = malloc(szImageBuffer);
-//    debugGrey = malloc(sizeInBytes);
+
+    /// THIS IS THE NEW BIT
+    /// you used to have to declare and allocate local space using malloc: grayVals = malloc(szImageBuffer);
+    /// now you allocate the space in shared memory (after opening the device):
+    int dd = coprthr_dopen(COPRTHR_DEVICE_E32,COPRTHR_O_THREAD);
+	if (dd<0)
+	{
+        printf("Device open failed.\n");
+        exit(0);
+    }
+    eGrayVals = coprthr_dmalloc(dd, szImageBuffer, 0);
+    /// and cast a local pointer directly into shared mem where you can treat it like local memory
+    pGreyVals = (u_int8_t*)coprthr_memptr(eGrayVals, 0);
+    /// CONTINUE ON AS BEFORE
 
     /// read in the gray scale values
     fscanf(grayFile, "%s [", txt);
-    pGreyVals = grayVals;
     for(i=0; i < height; i++)
     {
         for(j=0; j < width - 1; j++)
@@ -115,7 +126,7 @@ printf("reading\n");
 
 //for (i=szImageBuffer-16;i<szImageBuffer;i++)
 //    printf("%u, ", grayVals[i]);
-//printf("\nsize: %u, buffersize: %u\n", sizeInBytes, szImageBuffer);
+printf("\nsize: %u, buffersize: %u\n", sizeInBytes, szImageBuffer);
 
 #ifdef TIMEHOST
     clock_t hostTime = clock();
@@ -134,32 +145,26 @@ printf("reading\n");
 #endif // TIMEIT
 printf("acc set up\n");
 
-    /// Open the co processor
-    int dd = coprthr_dopen(COPRTHR_DEVICE_E32,COPRTHR_O_THREAD);
-	if (dd<0)
-	{
-        printf("Device open failed.\n");
-        exit(0);
-    }
-
-    eGrayVals = coprthr_dmalloc(dd, szImageBuffer, 0);
-    coprthr_dwrite(dd, eGrayVals, 0, (void*)grayVals, szImageBuffer, COPRTHR_E_WAIT);
+/// You don't have to call drite because the data is already in shared mem
+///    coprthr_dwrite(dd, eGrayVals, 0, (void*)grayVals, szImageBuffer, COPRTHR_E_WAIT);
 
     eCoreResults = coprthr_dmalloc(dd, (ECORES * GRAYLEVELS * sizeof(int)), 0); /// Output only
 
-    scan_args s_args;
-    s_args.width = width;
-    s_args.height = height;
-    s_args.szImageBuffer = szImageBuffer;
-    s_args.g_result = (void*)coprthr_memptr(eCoreResults, 0);
-    s_args.g_grayVals = (void*)coprthr_memptr(eGrayVals, 0);
+    coprthr_mem_t argMemScan = coprthr_dmalloc(dd, sizeof(scan_args), 0); /// allocate shares arguement memory
+    scan_args * ps_Args = (scan_args*)coprthr_memptr(argMemScan, 0);
+    ps_Args->width = width;
+    ps_Args->height = height;
+    ps_Args->szImageBuffer = szImageBuffer;
+    ps_Args->g_result = (void*)coprthr_memptr(eCoreResults, 0);
+    ps_Args->g_grayVals = pGreyVals; /// pGreyVals has already been massed into the correct form
 //    s_args.debug = debug;
-printf("calling scan\n");
 
 	coprthr_program_t prg = coprthr_cc_read_bin("./egdmaScan.e32", 0);
-    coprthr_sym_t krn = coprthr_getsym(prg, "k_scan");
-//    coprthr_event_t ev = coprthr_dexec(dd, ECORES, krn, (void*)&s_args, 0);
-    coprthr_mpiexec(dd, ECORES, krn, &s_args, sizeof(s_args), 0);
+    coprthr_kernel_t krn = coprthr_getsym(prg, "k_scan");
+
+printf("calling scan\n");
+    coprthr_dexec(dd, ECORES, krn, (void*)&argMemScan, 0);
+//    coprthr_mpiexec(dd, ECORES, krn, &s_args, sizeof(s_args), 0);
 
     coprthr_dwait(dd);
     coprthr_dread(dd, eCoreResults, 0, coreResults, ECORES * GRAYLEVELS * sizeof(int), COPRTHR_E_WAIT);
@@ -230,21 +235,23 @@ calcCumFreq:
     eMap = coprthr_dmalloc(dd, sizeOfMap, 0);
     coprthr_dwrite(dd, eMap, 0, (void*)map, sizeOfMap, COPRTHR_E_WAIT);
 
-    map_args m_args;
-    m_args.width = width;
-    m_args.height = height;
-    m_args.szImageBuffer = szImageBuffer;
-    m_args.g_map = (void*)coprthr_memptr(eMap, 0);
-    m_args.g_grayVals = (void*)coprthr_memptr(eGrayVals, 0);
+    coprthr_mem_t argMemMap = coprthr_dmalloc(dd, sizeof(map_args), 0); /// allocate shares arguement memory
+    map_args * p_MapArgs = (map_args*)coprthr_memptr(argMemMap, 0);
+
+    p_MapArgs->width = width;
+    p_MapArgs->height = height;
+    p_MapArgs->szImageBuffer = szImageBuffer;
+    p_MapArgs->g_map = (void*)coprthr_memptr(eMap, 0);
+    p_MapArgs->g_grayVals = (void*)coprthr_memptr(eGrayVals, 0);
 
 	prg = coprthr_cc_read_bin("./egdmaMap.e32", 0);            /// still needed
     krn = coprthr_getsym(prg, "k_map");
-//    coprthr_event_t ev = coprthr_dexec(dd, ECORES, krn, (void*)&m_args, 0);
-    coprthr_mpiexec(dd, ECORES, krn, &m_args, sizeof(m_args), 0);
+    coprthr_dexec(dd, ECORES, krn, (void*)&argMemMap, 0);
+//    coprthr_mpiexec(dd, ECORES, krn, &m_args, sizeof(m_args), 0);
 
     coprthr_dwait(dd);
-    equalGrey = malloc(szImageBuffer);
-    coprthr_dread(dd, eGrayVals, 0, (void*)equalGrey, szImageBuffer, COPRTHR_E_WAIT);
+    equalGray = malloc(szImageBuffer);
+    coprthr_dread(dd, eGrayVals, 0, (void*)equalGray, szImageBuffer, COPRTHR_E_WAIT);
 
 
 #ifdef TIMEHOST
@@ -276,11 +283,11 @@ calcCumFreq:
     for(i=0;i<height; i++)
     {
         for(j=0;j<width - 1;j++)
-            fprintf(grayFile, "%u, ", equalGrey[k++]);
+            fprintf(grayFile, "%u, ", equalGray[k++]);
         if (i < (height-1))
-            fprintf(grayFile, "%u;\n", equalGrey[k++]);
+            fprintf(grayFile, "%u;\n", equalGray[k++]);
         else
-            fprintf(grayFile, "%u]", equalGrey[k++]);
+            fprintf(grayFile, "%u]", equalGray[k++]);
     }
     fflush(grayFile);
     close(grayFile);
@@ -289,6 +296,8 @@ calcCumFreq:
 tidyUpAndExit:
     coprthr_dfree(dd, eMap);
     coprthr_dfree(dd, eGrayVals);
+    coprthr_dfree(dd, argMemScan);
+    coprthr_dfree(dd, argMemMap);
     coprthr_dclose(dd);
     free(grayVals);
     exit(1);

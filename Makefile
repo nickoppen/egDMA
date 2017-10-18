@@ -8,8 +8,8 @@ INCS = -I. -I/usr/local/browndeer/coprthr2/include -I${ESDK}/include
 LIBS = -L/usr/local/browndeer/coprthr2/lib -lcoprthr -lcoprthrcc -lm -ldl -L${ESDK}/lib
 
 COPRCC = /usr/local/browndeer/coprthr2/bin/coprcc
-COPRCC_FLAGS = -g --info
-COPRCC_DEFS = $(DEFS) -DCOPRTHR_MPI_COMPAT
+COPRCC_FLAGS = -v -g --info 
+COPRCC_DEFS = $(DEFS) 
 COPRCC_INCS = $(INCS)
 COPRCC_LIBS = -L/usr/local/browndeer/coprthr2/lib \
 	-lcoprthr_hostcall -lcoprthr_mpi -lcoprthr2_dev -lesyscall

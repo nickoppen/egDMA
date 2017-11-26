@@ -216,6 +216,7 @@ calcCumFreq:
 //    for(j=0;j<GRAYLEVELS; j++)
 //        printf("%u ", map[j]);
 //    printf("\n");
+    printf("mapping\n");
 
 #ifdef TIMEHOST
 
@@ -247,7 +248,6 @@ calcCumFreq:
 	prg = coprthr_cc_read_bin("./egdmaMap.e32", 0);            /// still needed
     krn = coprthr_getsym(prg, "k_map");
     coprthr_dexec(dd, ECORES, krn, (void*)&argMemMap, 0);
-//    coprthr_mpiexec(dd, ECORES, krn, &m_args, sizeof(m_args), 0);
 
     coprthr_dwait(dd);
     equalGray = malloc(szImageBuffer);

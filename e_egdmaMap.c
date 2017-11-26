@@ -10,6 +10,11 @@
 #define UseDMA
 
 #ifdef UseDMA
+void __attribute__((interrupt)) int_isr()
+{
+    host_printf("Outbound complete for: %i\n", coprthr_corenum());
+}
+
 void __entry k_map(map_args * args)
 {
 #ifdef TIMEEPIP
@@ -56,9 +61,13 @@ void __entry k_map(map_args * args)
 ///    read in the map using memcpy (probably faster for a small amount of data)
     memcpy(map, args->g_map, GRAYLEVELS);
 
+    /// Set up the interrupt handler
+    e_irq_attach(E_DMA1_INT, int_isr);
+    e_irq_mask(E_DMA1_INT, E_FALSE);
+    e_irq_global_mask(E_FALSE);
     /// set up the DMA dexcriptors once and then only change the destination in the loop
     e_dma_set_desc(E_DMA_1,                                     /// outbound data channel on the interuptable channel
-                    E_DMA_DWORD | E_DMA_ENABLE | E_DMA_MASTER,  /// config
+                    E_DMA_DWORD | E_DMA_ENABLE | E_DMA_MASTER | E_DMA_IRQEN,  /// config
                     0x0,                                        /// next descriptor (there isn't one)
                     8,                                          /// inner stride source
                     8,                                          /// inner stride destination
@@ -127,6 +136,10 @@ void __entry k_map(map_args * args)
 
         processingA = !processingA;             /// swap buffers
     }
+
+    /// put back the interrupt masks where the came from
+    e_irq_mask(E_DMA1_INT, E_TRUE);
+    e_irq_global_mask(E_TRUE);
 
     if(tailEnds)
     {

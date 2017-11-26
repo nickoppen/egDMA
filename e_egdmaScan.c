@@ -96,7 +96,9 @@ bebug = beingTransferred;
 //phalt();
     bebug = beingTransferred;
     memcpy(beingTransferred, startLoc, workArea);   /// copy the first block
-phalt();
+
+///phalt();
+
     while(workUnits--)
     {
 //host_printf("Core:%d, iteration: %u, startLoc: 0x%x, src: 0x%x, dst: 0x%x\n", gid, workUnits+1, startLoc, dmaDesc.src_addr, dmaDesc.dst_addr);

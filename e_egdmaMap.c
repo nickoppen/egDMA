@@ -10,9 +10,12 @@
 #define UseDMA
 
 #ifdef UseDMA
+int epip_callback(int coreId, int something);
+
 void __attribute__((interrupt)) int_isr()
 {
-    host_printf("Outbound complete for: %i\n", coprthr_corenum());
+    //host_printf("Outbound complete for: %i\n", coprthr_corenum());
+    epip_callback(coprthr_corenum(), 0);
 }
 
 void __entry k_map(map_args * args)

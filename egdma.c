@@ -9,7 +9,13 @@
 #define USAGE {printf("Usage: %s [<inputTextFile>] [-o <outputTextFile>\n", argv[0]); exit (-1);}
 #define FILEERR { printf("Something wrong with the input grayscale file: %s...\n", argv[1]); exit(-1); }
 
+int epip_callback(int coreId, int i);
+USRCALL(epip_callback, 1);
+int epip_callback(int coreId, int i)
+{
+    printf("call back received from: %i", coreId);
 
+}
 
 int main(int argc, char** argv)
 {

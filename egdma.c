@@ -9,8 +9,8 @@
 #define USAGE {printf("Usage: %s [<inputTextFile>] [-o <outputTextFile>\n", argv[0]); exit (-1);}
 #define FILEERR { printf("Something wrong with the input grayscale file: %s...\n", argv[1]); exit(-1); }
 
-int epip_callback(int coreId, int i);
-USRCALL(epip_callback, 1);
+//int epip_callback(int coreId, int i);
+//USRCALL(epip_callback, 1);
 int epip_callback(int coreId, int i)
 {
     printf("call back received from: %i", coreId);
@@ -253,9 +253,12 @@ calcCumFreq:
 
 	prg = coprthr_cc_read_bin("./egdmaMap.e32", 0);            /// still needed
     krn = coprthr_getsym(prg, "k_map");
+    printf("calling map\n");
     coprthr_dexec(dd, ECORES, krn, (void*)&argMemMap, 0);
+    printf("waiting on map\n");
 
     coprthr_dwait(dd);
+    printf("done with map\n");
     equalGray = malloc(szImageBuffer);
     coprthr_dread(dd, eGrayVals, 0, (void*)equalGray, szImageBuffer, COPRTHR_E_WAIT);
 

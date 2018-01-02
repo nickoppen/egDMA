@@ -10,6 +10,16 @@ uint8_t * bebug;
 
 #define UseDMA
 #ifdef UseDMA
+int epip_callback(int coreId, int something);
+unsigned localRow, localCol;
+e_mutex_t mtx;
+
+void __attribute__((interrupt)) int_isr()
+{
+    host_printf("Unlocking on: %i \(%u, %u\)\n", coprthr_corenum(), localRow, localCol);
+    e_mutex_unlock(localRow, localCol, &mtx);
+}
+
 void __entry k_scan(scan_args * args)
 {
 #ifdef TIMEEPIP
@@ -22,6 +32,11 @@ void __entry k_scan(scan_args * args)
     unsigned int grayDistribution[GRAYLEVELS] = { 0 };   /// all elements set to 0
     unsigned int i;
     uint8_t debug;
+
+    e_coreid_t coreId = e_get_coreid();
+    e_coords_from_coreid(coreId, &localRow, &localCol);
+    e_mutex_init(localRow, localCol, &mtx, NULL);
+
 
     register uintptr_t sp_val;      /// Thanks jar
     __asm__ __volatile__(
@@ -40,11 +55,11 @@ void __entry k_scan(scan_args * args)
     uint8_t * B = (int *)coprthr_tls_sbrk(workArea);            /// 2nd chunks
     uint8_t * beingTransferred;                                 /// A or B
     uint8_t * beingProcessed;                                   /// B or A
-    e_dma_id_t  currentChannel;                                 /// E_DMA_0 or E_DMA_1
+    e_dma_id_t  currentChannel = E_DMA_0;                                 /// E_DMA_0 or E_DMA_1  --  just use DMA_0 as a test
     int processingA = (gid % 2);                                /// odd numbered cores start with frame A while transferring data into B; odd numbered cores start on B
     e_dma_desc_t dmaDesc;
 
-    int COP2_TRX_FLAGS;
+//    int COP2_TRX_FLAGS;
 
 
     /// how much data do we have to process
@@ -62,14 +77,12 @@ void __entry k_scan(scan_args * args)
     if(processingA)
     {
         beingTransferred = A;                                   /// transfer first frame to A ready for processing
-        currentChannel = E_DMA_0;                               /// on E_DMA_0
-        COP2_TRX_FLAGS = COPRTHR2_M_DMA_0;
+// testing        currentChannel = E_DMA_0;                               /// on E_DMA_0
     }
     else
     {
         beingTransferred = B;
-        currentChannel = E_DMA_1;
-        COP2_TRX_FLAGS = COPRTHR2_M_DMA_1;
+// testing        currentChannel = E_DMA_1;
     }
 
     if(workUnits)
@@ -77,9 +90,16 @@ void __entry k_scan(scan_args * args)
     else
         trxCount = tailEnds / 8;
 
-host_printf("Core:%d, localSize: %u, workArea: %u, imageSize: %u, band: %u, wornUnits: %u, tailEnds; %u, startLoc: 0x%x, trxCount: %u, 0x%x, A: 0x%x, B:0x%x\n", gid, localSize, workArea, imageSize, band, workUnits, tailEnds, startLoc, trxCount, dmaDesc.count, A, B);
+//host_printf("Core:%d, localSize: %u, workArea: %u, imageSize: %u, band: %u, wornUnits: %u, tailEnds; %u, startLoc: 0x%x, trxCount: %u, 0x%x, A: 0x%x, B:0x%x\n", gid, localSize, workArea, imageSize, band, workUnits, tailEnds, startLoc, trxCount, dmaDesc.count, A, B);
+    /// Set up the interrupt handlers
+//    e_irq_attach(E_DMA1_INT, int_isr);
+//    e_irq_mask(E_DMA1_INT, E_FALSE);
+    e_irq_attach(E_DMA0_INT, int_isr);
+    e_irq_mask(E_DMA0_INT, E_FALSE);
+    e_irq_global_mask(E_FALSE);
+
     e_dma_set_desc(currentChannel,                              /// channel
-                    E_DMA_DWORD | E_DMA_ENABLE | E_DMA_MASTER,  /// config
+                    E_DMA_DWORD | E_DMA_ENABLE | E_DMA_MASTER | E_DMA_IRQEN,  /// config
                     0x0,                                        /// next descriptor (there isn't one)
                     8,                                          /// inner stride source (sizeof(DWORD))
                     8,                                          /// inner stride destination
@@ -103,10 +123,12 @@ bebug = beingTransferred;
     {
 //host_printf("Core:%d, iteration: %u, startLoc: 0x%x, src: 0x%x, dst: 0x%x\n", gid, workUnits+1, startLoc, dmaDesc.src_addr, dmaDesc.dst_addr);
 #ifdef TIMEEPIP
-        STARTCLOCK1(waitStartTicks);                            /// e_dma_wait does not idle - it is a wait loop
+        STARTCLOCK1(waitStartTicks);
 #endif // TIMEIT
-        e_dma_wait(currentChannel);                             /// wait for the current transfer to complete
-//        coprthr_wait(COP2_TRX_FLAGS);
+        /// wait for the current transfer to complete
+//        e_dma_wait(currentChannel);                           /// e_dma_wait does not idle - it is a wait loop
+        e_mutex_lock(localRow, localCol, &mtx);
+
 #ifdef TIMEEPIP
         STOPCLOCK1(waitStopTicks);
         totalWaitTicks += (waitStartTicks - waitStopTicks);
@@ -118,15 +140,13 @@ bebug = beingTransferred;
         if(processingA)
         {
             beingTransferred = B;                               /// transfer next frame to B
-            currentChannel = E_DMA_1;                           /// on E_DMA_1
-            COP2_TRX_FLAGS = COPRTHR2_M_DMA_1;
+// testing            currentChannel = E_DMA_1;                           /// on E_DMA_1
             beingProcessed = A;
         }
         else
         {
             beingTransferred = A;
-            currentChannel = E_DMA_0;
-            COP2_TRX_FLAGS = COPRTHR2_M_DMA_0;
+// testing            currentChannel = E_DMA_0;
             beingProcessed = B;
         }
 
@@ -141,7 +161,6 @@ bebug = beingTransferred;
         dmaDesc.dst_addr = (void*)beingTransferred;
 
         e_dma_start(&dmaDesc, currentChannel);
-//        coprthr_memcopy_align(beingTransferred, startLoc, trxCount, COP2_TRX_FLAGS | COPRTHR2_E_NOWAIT);
 
         for(i=0; i<workArea; i++)                               /// only the last frame will have tailEndInts to process and that is done below
             ++grayDistribution[beingProcessed[i]];
@@ -153,8 +172,9 @@ host_printf("Core:%d, tailends: %u\n", gid, tailEnds);
 #ifdef TIMEEPIP
         STARTCLOCK1(waitStartTicks);                            /// e_dma_wait does not idle - it is a wait loop
 #endif // TIMEIT
-        e_dma_wait(currentChannel);                             /// wait for the last transfer to complete
-//        coprthr_wait(COP2_TRX_FLAGS);
+        /// wait for the last transfer to complete
+//        e_dma_wait(currentChannel);
+        e_mutex_lock(localRow, localCol, &mtx);
 #ifdef TIMEEPIP
         STOPCLOCK1(waitStopTicks);
         totalWaitTicks += (waitStartTicks - waitStopTicks);
@@ -164,7 +184,6 @@ host_printf("Core:%d, tailends: %u\n", gid, tailEnds);
         for(i=0; i<tailEnds; i++)                               /// scan the remaining data
             ++grayDistribution[beingTransferred[i]];            /// the last transferred frame
     }
-
 
 #ifdef TIMEEPIP
         STARTCLOCK1(waitStartTicks);
@@ -178,7 +197,14 @@ host_printf("Core:%d, tailends: %u\n", gid, tailEnds);
 
 tidyUpAndExit:
     /// tidy up
+    e_mutex_unlock(localRow, localCol, &mtx);
     coprthr_tls_brk(baseAddr);
+    /// put back the interrupt masks where the came from
+    e_irq_mask(E_DMA0_INT, E_TRUE);
+//    e_irq_mask(E_DMA1_INT, E_TRUE);
+    e_irq_global_mask(E_TRUE);
+
+
 
 #ifdef TIMEEPIP
     STOPCLOCK0(clkStopTicks);

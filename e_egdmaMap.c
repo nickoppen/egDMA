@@ -11,11 +11,14 @@
 
 #ifdef UseDMA
 int epip_callback(int coreId, int something);
+unsigned localRow, localCol;
+e_mutex_t mtx;
 
 void __attribute__((interrupt)) int_isr()
 {
-    //host_printf("Outbound complete for: %i\n", coprthr_corenum());
-    epip_callback(coprthr_corenum(), 0);
+    host_printf("Unlocking on: %i \(%u, %u\)\n", coprthr_corenum(), localRow, localCol);
+    //  call backs not currenty working -- epip_callback(coprthr_corenum(), 0);
+    e_mutex_unlock(localRow, localCol, &mtx);
 }
 
 void __entry k_map(map_args * args)
@@ -27,6 +30,9 @@ void __entry k_map(map_args * args)
 #endif // TIMEIT
     unsigned int gid = coprthr_corenum();
     unsigned int i;
+    e_coreid_t coreId = e_get_coreid();
+    e_coords_from_coreid(coreId, &localRow, &localCol);
+    e_mutex_init(localRow, localCol, &mtx, NULL);
 
     register uintptr_t sp_val;      /// Thanks jar
     __asm__ __volatile__(
@@ -68,7 +74,7 @@ void __entry k_map(map_args * args)
     e_irq_attach(E_DMA1_INT, int_isr);
     e_irq_mask(E_DMA1_INT, E_FALSE);
     e_irq_global_mask(E_FALSE);
-    /// set up the DMA dexcriptors once and then only change the destination in the loop
+    /// set up the DMA descriptors once and then only change the destination in the loop
     e_dma_set_desc(E_DMA_1,                                     /// outbound data channel on the interuptable channel
                     E_DMA_DWORD | E_DMA_ENABLE | E_DMA_MASTER | E_DMA_IRQEN,  /// config
                     0x0,                                        /// next descriptor (there isn't one)
@@ -109,7 +115,7 @@ void __entry k_map(map_args * args)
 #ifdef TIMEEPIP
         STARTCLOCK1(waitStartTicks);  /// e_dma_wait does not idle - it is a wait loop
 #endif // TIMEIT
-        e_dma_wait(E_DMA_0);
+        e_dma_wait(E_DMA_0);        /// use dma_wait
 #ifdef TIMEEPIP
         STOPCLOCK1(waitStopTicks);
         totalWaitTicks += (waitStartTicks - waitStopTicks);
@@ -129,7 +135,8 @@ void __entry k_map(map_args * args)
             outbound = B;
         }
 
-        e_dma_wait(E_DMA_1);            /// wait til the previous copy bakc has finished before starting the next one
+//        e_dma_wait(E_DMA_1);            /// wait til the previous copy back has finished before starting the next one
+        e_mutex_lock(localRow, localCol, &mtx);
 
         dmaDescOutbound.src_addr = outbound;
         dmaDescOutbound.dst_addr = startLoc;
@@ -170,7 +177,10 @@ void __entry k_map(map_args * args)
 #ifdef TIMEEPIP
         STARTCLOCK1(waitStartTicks);  /// e_dma_wait does not idle - it is a wait loop
 #endif // TIMEIT
-    e_dma_wait(E_DMA_1);    /// make sure the last outbound transfer on DMA_1 is complete before exiting
+    /// make sure the last outbound transfer on DMA_1 is complete before exiting
+    e_dma_wait(E_DMA_1);
+    //e_mutex_lock(localRow, localCol, &mtx);
+    //e_mutex_unlock(localRow, localCol, &mtx); /// unlock the mutex having waited on the lock
 #ifdef TIMEEPIP
         STOPCLOCK1(waitStopTicks);
         totalWaitTicks += (waitStartTicks - waitStopTicks);

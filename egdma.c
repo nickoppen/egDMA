@@ -90,7 +90,8 @@ int main(int argc, char** argv)
     default:
         USAGE;
     }
-printf("reading\n");
+
+    printf("reading");
     fscanf(grayFile, "%s %d", txt, &width);
     fscanf(grayFile, "%s %d", txt, &height);
 
@@ -127,12 +128,20 @@ printf("reading\n");
         fscanf(grayFile, " %d;", &newVal);
         *pGreyVals = newVal & 0xFFFF;        /// stip off all but the last byte
         pGreyVals++;
+        printf(".");
+        fflush(stdout);
     }
     close(grayFile);
+    printf("\n");
 
 //for (i=szImageBuffer-16;i<szImageBuffer;i++)
 //    printf("%u, ", grayVals[i]);
 printf("\nsize: %u, buffersize: %u\n", sizeInBytes, szImageBuffer);
+
+// testing
+//coprthr_dclose(dd);
+//exit(00);
+// testing
 
 #ifdef TIMEHOST
     clock_t hostTime = clock();
@@ -149,7 +158,6 @@ printf("\nsize: %u, buffersize: %u\n", sizeInBytes, szImageBuffer);
 
     clock_t eTime = clock();        /// start the epiphany clock
 #endif // TIMEIT
-printf("acc set up\n");
 
 /// You don't have to call drite because the data is already in shared mem
 ///    coprthr_dwrite(dd, eGrayVals, 0, (void*)grayVals, szImageBuffer, COPRTHR_E_WAIT);
@@ -174,7 +182,6 @@ printf("calling scan\n");
 
     coprthr_dwait(dd);
     coprthr_dread(dd, eCoreResults, 0, coreResults, ECORES * GRAYLEVELS * sizeof(int), COPRTHR_E_WAIT);
-printf("combining\n");
 
     /// combind the individual counts from the cores
     k = 0;

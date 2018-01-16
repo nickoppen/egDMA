@@ -9,6 +9,7 @@
 uint8_t * bebug;
 
 #define UseDMA
+
 #ifdef UseDMA
 int epip_callback(int coreId, int something);
 unsigned localRow, localCol;
@@ -16,7 +17,7 @@ e_mutex_t mtx;
 
 void __attribute__((interrupt)) int_isr()
 {
-    host_printf("Unlocking on: %i \(%u, %u\)\n", coprthr_corenum(), localRow, localCol);
+//    host_printf("Unlocking on: %i \(%u, %u\)\n", coprthr_corenum(), localRow, localCol);
     e_mutex_unlock(localRow, localCol, &mtx);
 }
 
@@ -49,18 +50,15 @@ void __entry k_scan(scan_args * args)
     uintptr_t baseLowOrder = (int)baseAddr & 0x0000FFFF;
     unsigned int localSize = sp_val - baseLowOrder - 0x200;     /// amount of free space available in bytes   /// leave 512 bytes as a buffer
 //    unsigned int localSize = 0x2000;
-    unsigned int workArea = (localSize / 2);                    /// split the avalable memory into two chunks
+    unsigned int workArea = (localSize / 2) ;                    /// split the avalable memory into two chunks
                  workArea -= (workArea % 8);                    /// and make them divisible by 8
-    uint8_t * A = (int *)coprthr_tls_sbrk(workArea);            /// 1st chunks
-    uint8_t * B = (int *)coprthr_tls_sbrk(workArea);            /// 2nd chunks
+    uint8_t * A = (int *)coprthr_tls_sbrk(workArea);            /// 1st chunk
+    uint8_t * B = (int *)coprthr_tls_sbrk(workArea);            /// 2nd chunk
     uint8_t * beingTransferred;                                 /// A or B
     uint8_t * beingProcessed;                                   /// B or A
-    e_dma_id_t  currentChannel = E_DMA_0;                                 /// E_DMA_0 or E_DMA_1  --  just use DMA_0 as a test
+    e_dma_id_t  currentChannel;                                 /// E_DMA_0 or E_DMA_1
     int processingA = (gid % 2);                                /// odd numbered cores start with frame A while transferring data into B; odd numbered cores start on B
     e_dma_desc_t dmaDesc;
-
-//    int COP2_TRX_FLAGS;
-
 
     /// how much data do we have to process
     unsigned int imageSize = args->szImageBuffer;
@@ -92,10 +90,19 @@ void __entry k_scan(scan_args * args)
 
 //host_printf("Core:%d, localSize: %u, workArea: %u, imageSize: %u, band: %u, wornUnits: %u, tailEnds; %u, startLoc: 0x%x, trxCount: %u, 0x%x, A: 0x%x, B:0x%x\n", gid, localSize, workArea, imageSize, band, workUnits, tailEnds, startLoc, trxCount, dmaDesc.count, A, B);
     /// Set up the interrupt handlers
-//    e_irq_attach(E_DMA1_INT, int_isr);
-//    e_irq_mask(E_DMA1_INT, E_FALSE);
-    e_irq_attach(E_DMA0_INT, int_isr);
-    e_irq_mask(E_DMA0_INT, E_FALSE);
+    if (processingA)  /// testing -- even cores use dma_0 and od cores use dma_1
+    {
+        currentChannel = E_DMA_0;
+        e_irq_attach(E_DMA0_INT, int_isr);
+        e_irq_mask(E_DMA0_INT, E_FALSE);
+    }
+    else
+    {
+        currentChannel = E_DMA_1;
+        e_irq_attach(E_DMA1_INT, int_isr);
+        e_irq_mask(E_DMA1_INT, E_FALSE);
+    }
+
     e_irq_global_mask(E_FALSE);
 
     e_dma_set_desc(currentChannel,                              /// channel
@@ -162,12 +169,17 @@ bebug = beingTransferred;
 
         e_dma_start(&dmaDesc, currentChannel);
 
+        /// ======================================================
+        /// This is the main loop that does all the work
+        ///
         for(i=0; i<workArea; i++)                               /// only the last frame will have tailEndInts to process and that is done below
             ++grayDistribution[beingProcessed[i]];
+        ///
+        ///=======================================================
 
         processingA = !processingA;                             /// swap buffers and channels
     }
-host_printf("Core:%d, tailends: %u\n", gid, tailEnds);
+//host_printf("Core:%d, tailends: %u\n", gid, tailEnds);
 
 #ifdef TIMEEPIP
         STARTCLOCK1(waitStartTicks);                            /// e_dma_wait does not idle - it is a wait loop
@@ -200,8 +212,10 @@ tidyUpAndExit:
     e_mutex_unlock(localRow, localCol, &mtx);
     coprthr_tls_brk(baseAddr);
     /// put back the interrupt masks where the came from
-    e_irq_mask(E_DMA0_INT, E_TRUE);
-//    e_irq_mask(E_DMA1_INT, E_TRUE);
+    if (gid % 2)
+        e_irq_mask(E_DMA0_INT, E_TRUE);
+    else
+        e_irq_mask(E_DMA1_INT, E_TRUE);
     e_irq_global_mask(E_TRUE);
 
 

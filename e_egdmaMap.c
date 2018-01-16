@@ -16,7 +16,7 @@ e_mutex_t mtx;
 
 void __attribute__((interrupt)) int_isr()
 {
-    host_printf("Unlocking on: %i \(%u, %u\)\n", coprthr_corenum(), localRow, localCol);
+//    host_printf("Unlocking on: %i \(%u, %u\)\n", coprthr_corenum(), localRow, localCol);
     //  call backs not currenty working -- epip_callback(coprthr_corenum(), 0);
     e_mutex_unlock(localRow, localCol, &mtx);
 }

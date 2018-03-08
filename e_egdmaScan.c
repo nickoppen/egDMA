@@ -8,13 +8,14 @@
 
 uint8_t * bebug;
 
-#define UseDMA
+#define UseDMA      /// repeated from egdma.h so that the formating in this file works -
 
 #ifdef UseDMA
 int epip_callback(int coreId, int something);
 unsigned localRow, localCol;
 e_mutex_t mtx;
 
+/// The interrupt routine --- will be attached to either E_DMA1_INT or E_DMA2_INT using e_irq_attach()
 void __attribute__((interrupt)) int_isr()
 {
 //    host_printf("Unlocking on: %i \(%u, %u\)\n", coprthr_corenum(), localRow, localCol);

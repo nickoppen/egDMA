@@ -6,7 +6,7 @@
 #include <coprthr_mpi.h>
 
 #include "egdma.h"
-#define USAGE {printf("Usage: %s [<inputTextFile>] [-o <outputTextFile>\n", argv[0]); exit (-1);}
+#define SHOW_USAGE {printf("Usage: %s [-h] [<inputTextFile>] [-o <outputTextFile>]\n", argv[0]); exit (-1);}
 #define FILEERR { printf("Something wrong with the input grayscale file: %s...\n", argv[1]); exit(-1); }
 
 //int epip_callback(int coreId, int i);
@@ -55,40 +55,38 @@ int main(int argc, char** argv)
     switch (argc)
     {
     case 1:     /// stdin and stdout
-//        printf("argc=%d, 0=%s, 1=%s\n", argc, argv[0], argv[1]);
         grayFile =  stdin;
         outFileArg = 0;
     break;
     case 2:     /// in from file out to stdout
-//        printf("argc=%d, 0=%s, 1=%s\n", argc, argv[0], argv[1]);
-        grayFile = fopen(argv[1], "r");
-        if(!grayFile)
-            FILEERR;
-        outFileArg = 0;
+        if (strcmp(argv[1], "-h") == 0)
+            SHOW_USAGE  // the macro has a }
+        else
+        {
+            grayFile = fopen(argv[1], "r");
+            if(!grayFile)
+                FILEERR;
+            outFileArg = 0;
+        }
     break;
     case 3:         /// in from stdin out to file (with -o on the cmd lne)
-//        printf("argc=%d, 0=%s, 1=%s, 2=%s\n", argc, argv[0], argv[1], argv[2]);
         grayFile =  stdin;
         if (strcmp(argv[1], "-o") == 0)
             outFileArg = 2;
         else
-            USAGE;
+            SHOW_USAGE;
     break;
     case 4:         /// in from file out to file
-//        printf("argc=%d, 0=%s, 1=%s, 2=%s, 3=%s\n", argc, argv[0], argv[1], argv[2], argv[3]);
         grayFile = fopen(argv[1], "r");
         if(!grayFile)
-        {
-            printf("Something wrong with the input grayscale file: %s...\n", argv[1]);
-            exit(-1);
-        }
+            FILEERR;
         if (strcmp(argv[2], "-o") == 0)
             outFileArg = 3;
         else
-            USAGE;
+            SHOW_USAGE;
     break;
     default:
-        USAGE;
+        SHOW_USAGE;
     }
 
     printf("reading");
@@ -101,19 +99,27 @@ int main(int argc, char** argv)
     if (sizeInBytes % 8)
         szImageBuffer += (8 - (sizeInBytes % 8));  /// make the buffer a number dividible by 8
 
-    /// THIS IS THE NEW BIT
-    /// you used to have to declare and allocate local space using malloc: grayVals = malloc(szImageBuffer);
-    /// now you allocate the space in shared memory (after opening the device):
     int dd = coprthr_dopen(COPRTHR_DEVICE_E32,COPRTHR_O_THREAD);
 	if (dd<0)
 	{
         printf("Device open failed.\n");
         exit(0);
     }
+
+
+    /// THIS IS THE NEW BIT
+    /// you used to have to declare and allocate local space using malloc: grayVals = malloc(szImageBuffer);
+    /// now you allocate the space in shared memory (after opening the device):
+
     eGrayVals = coprthr_dmalloc(dd, szImageBuffer, 0);
+
     /// and cast a local pointer directly into shared mem where you can treat it like local memory
     pGreyVals = (u_int8_t*)coprthr_memptr(eGrayVals, 0);
+
+    /// Now you have a local variable (pGrayVals) that you can treat like any other chunk of memory
+    /// but which is actually in shared memory
     /// CONTINUE ON AS BEFORE
+
 
     /// read in the gray scale values
     fscanf(grayFile, "%s [", txt);
@@ -122,7 +128,7 @@ int main(int argc, char** argv)
         for(j=0; j < width - 1; j++)
         {
             fscanf(grayFile, " %d,", &newVal);   /// read the new value in as an int
-            *pGreyVals = newVal & 0xFFFF;        /// stip off all but the last byte
+            *pGreyVals = newVal & 0xFFFF;        /// stip off all but the last byte and write it to shared memory
             pGreyVals++;
         }
         fscanf(grayFile, " %d;", &newVal);
@@ -132,16 +138,7 @@ int main(int argc, char** argv)
         fflush(stdout);
     }
     close(grayFile);
-    printf("\n");
 
-//for (i=szImageBuffer-16;i<szImageBuffer;i++)
-//    printf("%u, ", grayVals[i]);
-printf("\nsize: %u, buffersize: %u\n", sizeInBytes, szImageBuffer);
-
-// testing
-//coprthr_dclose(dd);
-//exit(00);
-// testing
 
 #ifdef TIMEHOST
     clock_t hostTime = clock();
@@ -159,31 +156,31 @@ printf("\nsize: %u, buffersize: %u\n", sizeInBytes, szImageBuffer);
     clock_t eTime = clock();        /// start the epiphany clock
 #endif // TIMEIT
 
-/// You don't have to call drite because the data is already in shared mem
-///    coprthr_dwrite(dd, eGrayVals, 0, (void*)grayVals, szImageBuffer, COPRTHR_E_WAIT);
+    /// You don't have to call dwrite the gray level data into shared memory because the data is already in shared mem
 
     eCoreResults = coprthr_dmalloc(dd, (ECORES * GRAYLEVELS * sizeof(int)), 0); /// Output only
 
-    coprthr_mem_t argMemScan = coprthr_dmalloc(dd, sizeof(scan_args), 0); /// allocate shares arguement memory
+    /// allocate shared argument memory
+    coprthr_mem_t argMemScan = coprthr_dmalloc(dd, sizeof(scan_args), 0);
     scan_args * ps_Args = (scan_args*)coprthr_memptr(argMemScan, 0);
     ps_Args->width = width;
     ps_Args->height = height;
     ps_Args->szImageBuffer = szImageBuffer;
     ps_Args->g_result = (void*)coprthr_memptr(eCoreResults, 0);
-    ps_Args->g_grayVals = pGreyVals; /// pGreyVals has already been massed into the correct form
+    ps_Args->g_grayVals = pGreyVals; /// pGreyVals has already been massaged into the correct form
 //    s_args.debug = debug;
 
 	coprthr_program_t prg = coprthr_cc_read_bin("./egdmaScan.e32", 0);
     coprthr_kernel_t krn = coprthr_getsym(prg, "k_scan");
 
-printf("calling scan\n");
+    printf("Scanning...\n");
     coprthr_dexec(dd, ECORES, krn, (void*)&argMemScan, 0);
-//    coprthr_mpiexec(dd, ECORES, krn, &s_args, sizeof(s_args), 0);
 
     coprthr_dwait(dd);
     coprthr_dread(dd, eCoreResults, 0, coreResults, ECORES * GRAYLEVELS * sizeof(int), COPRTHR_E_WAIT);
 
     /// combind the individual counts from the cores
+    printf("Calculaating map...\n");
     k = 0;
     for(i=0;i<ECORES;i++)
     {
@@ -229,7 +226,6 @@ calcCumFreq:
 //    for(j=0;j<GRAYLEVELS; j++)
 //        printf("%u ", map[j]);
 //    printf("\n");
-    printf("mapping\n");
 
 #ifdef TIMEHOST
 
@@ -260,12 +256,11 @@ calcCumFreq:
 
 	prg = coprthr_cc_read_bin("./egdmaMap.e32", 0);            /// still needed
     krn = coprthr_getsym(prg, "k_map");
-    printf("calling map\n");
+
+    printf("Mapping...\n");
     coprthr_dexec(dd, ECORES, krn, (void*)&argMemMap, 0);
-    printf("waiting on map\n");
 
     coprthr_dwait(dd);
-    printf("done with map\n");
     equalGray = malloc(szImageBuffer);
     coprthr_dread(dd, eGrayVals, 0, (void*)equalGray, szImageBuffer, COPRTHR_E_WAIT);
 
@@ -281,6 +276,7 @@ calcCumFreq:
 
 /// Output the equalised gray values into a new file
 
+    printf("Writing output file...\n");
     if(outFileArg)
     {
         grayFile = fopen(argv[outFileArg], "w");

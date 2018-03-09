@@ -9,8 +9,13 @@
 #define SHOW_USAGE {printf("Usage: %s [-h] [<inputTextFile>] [-o <outputTextFile>]\n", argv[0]); exit (-1);}
 #define FILEERR { printf("Something wrong with the input grayscale file: %s...\n", argv[1]); exit(-1); }
 
+///=======================================
+/// set up the routine for the callback
+/// from the epiphany
+/// CURRENTLY NOT WORKING
 //int epip_callback(int coreId, int i);
 //USRCALL(epip_callback, 1);
+///=======================================
 int epip_callback(int coreId, int i)
 {
     printf("call back received from: %i", coreId);
@@ -35,7 +40,6 @@ int main(int argc, char** argv)
     unsigned int cdf_image[GRAYLEVELS] = { 0 };         /// the cumulative distribution of gray levels in the image
     unsigned int cdf_ideal[GRAYLEVELS] = { 0 };         /// the ideal (evenly distributed) gray levels
     unsigned int idealFreq;                             /// the ideal number of pixels of each gray level
-    uint8_t      map[GRAYLEVELS] = { 0 };               /// the translation map of existing gray levels (the index) to the ideal level (the value)
     size_t sizeOfMap;
 //    int debug[1024];
     uint8_t test;
@@ -89,7 +93,7 @@ int main(int argc, char** argv)
         SHOW_USAGE;
     }
 
-    printf("reading");
+    printf("Reading...\n");
     fscanf(grayFile, "%s %d", txt, &width);
     fscanf(grayFile, "%s %d", txt, &height);
 
@@ -114,7 +118,7 @@ int main(int argc, char** argv)
     eGrayVals = coprthr_dmalloc(dd, szImageBuffer, 0);
 
     /// and cast a local pointer directly into shared mem where you can treat it like local memory
-    pGreyVals = (u_int8_t*)coprthr_memptr(eGrayVals, 0);
+    pGreyVals = (uint8_t*)coprthr_memptr(eGrayVals, 0);
 
     /// Now you have a local variable (pGrayVals) that you can treat like any other chunk of memory
     /// but which is actually in shared memory
@@ -134,7 +138,6 @@ int main(int argc, char** argv)
         fscanf(grayFile, " %d;", &newVal);
         *pGreyVals = newVal & 0xFFFF;        /// stip off all but the last byte
         pGreyVals++;
-        printf(".");
         fflush(stdout);
     }
     close(grayFile);
@@ -162,6 +165,7 @@ int main(int argc, char** argv)
 
     /// allocate shared argument memory
     coprthr_mem_t argMemScan = coprthr_dmalloc(dd, sizeof(scan_args), 0);
+    /// cast it to the defined argument type
     scan_args * ps_Args = (scan_args*)coprthr_memptr(argMemScan, 0);
     ps_Args->width = width;
     ps_Args->height = height;
@@ -174,13 +178,14 @@ int main(int argc, char** argv)
     coprthr_kernel_t krn = coprthr_getsym(prg, "k_scan");
 
     printf("Scanning...\n");
+    /// call the kernel with the ORIGINAL memory pointer as the argument
     coprthr_dexec(dd, ECORES, krn, (void*)&argMemScan, 0);
 
     coprthr_dwait(dd);
     coprthr_dread(dd, eCoreResults, 0, coreResults, ECORES * GRAYLEVELS * sizeof(int), COPRTHR_E_WAIT);
 
     /// combind the individual counts from the cores
-    printf("Calculaating map...\n");
+    printf("Calculating map...\n");
     k = 0;
     for(i=0;i<ECORES;i++)
     {
@@ -211,7 +216,11 @@ calcCumFreq:
         cdf_image[j] = cdf_image[j-1] + combinedResults[j];
     }
 
-    /// calculate the map
+    /// calculate the map putting it driectly into shared memory
+    sizeOfMap = GRAYLEVELS * sizeof(uint8_t);
+    eMap = coprthr_dmalloc(dd, sizeOfMap, 0);
+    uint8_t * map = (uint8_t*)coprthr_memptr(eMap, 0);
+
     i = 0;
     for(j=0;j<GRAYLEVELS;j++)
     {
@@ -220,12 +229,13 @@ calcCumFreq:
         map[j] = i;
     }
 
-//    for(j=0;j<GRAYLEVELS; j++)
-//        printf("%u ", combinedResults[j]);
-//    printf("\n");
-//    for(j=0;j<GRAYLEVELS; j++)
-//        printf("%u ", map[j]);
-//    printf("\n");
+printf("width: %i, height: %i\ncombined Resutlts ", width, height);
+for(j=0; j< GRAYLEVELS; j++) printf("%u ", combinedResults[j]);
+printf("\ncdf");
+for(j=0; j< GRAYLEVELS; j++) printf("%u ", cdf_image[j]);
+printf("\nmap");
+for(j=0; j< GRAYLEVELS; j++) printf("%u ", map[j]);
+printf("\n");
 
 #ifdef TIMEHOST
 
@@ -241,17 +251,13 @@ calcCumFreq:
     eTime = clock();
 #endif
 
-    sizeOfMap = GRAYLEVELS * sizeof(uint8_t);
-    eMap = coprthr_dmalloc(dd, sizeOfMap, 0);
-    coprthr_dwrite(dd, eMap, 0, (void*)map, sizeOfMap, COPRTHR_E_WAIT);
-
-    coprthr_mem_t argMemMap = coprthr_dmalloc(dd, sizeof(map_args), 0); /// allocate shares arguement memory
+    coprthr_mem_t argMemMap = coprthr_dmalloc(dd, sizeof(map_args), 0); /// allocate shares argument memory
     map_args * p_MapArgs = (map_args*)coprthr_memptr(argMemMap, 0);
 
     p_MapArgs->width = width;
     p_MapArgs->height = height;
     p_MapArgs->szImageBuffer = szImageBuffer;
-    p_MapArgs->g_map = (void*)coprthr_memptr(eMap, 0);
+    p_MapArgs->g_map = map;                     /// has already been converted with coprthr_memptr above
     p_MapArgs->g_grayVals = (void*)coprthr_memptr(eGrayVals, 0);
 
 	prg = coprthr_cc_read_bin("./egdmaMap.e32", 0);            /// still needed

@@ -10,14 +10,18 @@
 #define UseDMA
 
 #ifdef UseDMA
-int epip_callback(int coreId, int something);
 unsigned localRow, localCol;
 e_mutex_t mtx;
 
+/// int epip_callback(int coreId, int something);
+/// USRCALL(epip_callback...) must appear in the holst file
+
 void __attribute__((interrupt)) int_isr()
 {
-//    host_printf("Unlocking on: %i \(%u, %u\)\n", coprthr_corenum(), localRow, localCol);
-    //  call backs not currenty working -- epip_callback(coprthr_corenum(), 0);
+    /// The DMA is about to finish so call the host to start the retrieval
+    //epip_callback(coprthr_corenum(), 0);  call backs not currenty working
+
+    /// unblock the DMA channel for the next outbound transfer
     e_mutex_unlock(localRow, localCol, &mtx);
 }
 
@@ -45,7 +49,7 @@ void __entry k_map(map_args * args)
     void * baseAddr = coprthr_tls_sbrk(0);                      /// begining of free space
     uintptr_t baseLowOrder = (int)baseAddr & 0x0000FFFF;
     unsigned int localSize = sp_val - baseLowOrder - 0x200;      /// amount of free space available in bytes   /// leave 512 bytes as a buffer
-//    unsigned int localSize = 0x2000;
+//    unsigned int localSize = 0x2000;                          /// for testing
     unsigned int workArea = localSize / 2;                      /// divide the available space into 2 work areas A and B
                  workArea -= (workArea % 8);                    /// and make them divisible by 8
     uint8_t * A = (int *)coprthr_tls_sbrk(workArea);            /// 1st work area
@@ -135,7 +139,8 @@ void __entry k_map(map_args * args)
             outbound = B;
         }
 
-//        e_dma_wait(E_DMA_1);            /// wait til the previous copy back has finished before starting the next one
+        /// wait til the previous copy back has finished before starting the next one
+//        e_dma_wait(E_DMA_1);            /// e_dma_wait() is a wait loop
         e_mutex_lock(localRow, localCol, &mtx);
 
         dmaDescOutbound.src_addr = outbound;
@@ -172,8 +177,8 @@ void __entry k_map(map_args * args)
         STOPCLOCK1(waitStopTicks);
         totalWaitTicks += (waitStartTicks - waitStopTicks);
 #endif // TIMEIT
-//        host_printf("%d\t%u outbound from 0x%x\n", gid, tailEnds, inbound);
     }
+
 #ifdef TIMEEPIP
         STARTCLOCK1(waitStartTicks);  /// e_dma_wait does not idle - it is a wait loop
 #endif // TIMEIT

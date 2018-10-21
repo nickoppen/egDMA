@@ -22,7 +22,7 @@ void __attribute__((interrupt)) int_isr()
     //epip_callback(coprthr_corenum(), 0);  call backs not currenty working
 
     /// unblock the DMA channel for the next outbound transfer
-    e_mutex_unlock(localRow, localCol, &mtx);
+    //e_mutex_unlock(localRow, localCol, &mtx);
 }
 
 void __entry k_map(map_args * args)
@@ -73,6 +73,13 @@ void __entry k_map(map_args * args)
 
 ///    read in the map using memcpy (probably faster for a small amount of data)
     memcpy(map, args->g_map, GRAYLEVELS);
+    if(gid == 0)
+//    {
+//        host_printf("map,");
+//        for (i=0; i<GRAYLEVELS; i++)
+//            host_printf("%i,", map[i]);
+//        host_printf("\n");
+//    }
 
     /// Set up the interrupt handler
     e_irq_attach(E_DMA1_INT, int_isr);
@@ -140,8 +147,8 @@ void __entry k_map(map_args * args)
         }
 
         /// wait til the previous copy back has finished before starting the next one
-//        e_dma_wait(E_DMA_1);            /// e_dma_wait() is a wait loop
-        e_mutex_lock(localRow, localCol, &mtx);
+        e_dma_wait(E_DMA_1);            /// e_dma_wait() is a wait loop
+//        e_mutex_lock(localRow, localCol, &mtx);
 
         dmaDescOutbound.src_addr = outbound;
         dmaDescOutbound.dst_addr = startLoc;

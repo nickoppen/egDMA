@@ -31,6 +31,7 @@ int main(int argc, char** argv)
     uint8_t * pGreyVals;                                /// an index into the grayVals table
     char txt[10];                                       /// text input buffer
     int newVal;                                         /// integer input buffer
+//    uint8_t u8NewVal;
     int i, j, k;
 
     size_t sizeInBytes;                                 /// the number of gray values in the image
@@ -132,16 +133,20 @@ int main(int argc, char** argv)
         for(j=0; j < width - 1; j++)
         {
             fscanf(grayFile, " %d,", &newVal);   /// read the new value in as an int
+//            u8NewVal = newVal & 0xFFF;
+//            if (i==0)printf("%i, %u;", newVal, u8NewVal);    ///test
             *pGreyVals = newVal & 0xFFFF;        /// stip off all but the last byte and write it to shared memory
             pGreyVals++;
         }
         fscanf(grayFile, " %d;", &newVal);
         *pGreyVals = newVal & 0xFFFF;        /// stip off all but the last byte
         pGreyVals++;
-        fflush(stdout);
     }
     close(grayFile);
-
+//    printf("\n");
+//
+//    pGreyVals = (uint8_t*)coprthr_memptr(eGrayVals, 0);
+////    printf("first 8: %u, %u, %u, %u, %u, %u, %u, %u\n", pGreyVals[0], pGreyVals[1], pGreyVals[2], pGreyVals[3], pGreyVals[4], pGreyVals[5], pGreyVals[6], pGreyVals[7]);
 
 #ifdef TIMEHOST
     clock_t hostTime = clock();
@@ -171,7 +176,7 @@ int main(int argc, char** argv)
     ps_Args->height = height;
     ps_Args->szImageBuffer = szImageBuffer;
     ps_Args->g_result = (void*)coprthr_memptr(eCoreResults, 0);
-    ps_Args->g_grayVals = pGreyVals; /// pGreyVals has already been massaged into the correct form
+    ps_Args->g_grayVals = (uint8_t*)coprthr_memptr(eGrayVals, 0);
 //    s_args.debug = debug;
 
 	coprthr_program_t prg = coprthr_cc_read_bin("./egdmaScan.e32", 0);
@@ -191,9 +196,11 @@ int main(int argc, char** argv)
     {
         for (j=0;j<GRAYLEVELS;j++)
         {
+//            printf("%i ,", coreResults[k]);
             combinedResults[j] += coreResults[k];
             k++;
         }
+//        printf("\n");
     }
 
 #ifdef TIMEHOST
@@ -216,7 +223,7 @@ calcCumFreq:
         cdf_image[j] = cdf_image[j-1] + combinedResults[j];
     }
 
-    /// calculate the map putting it driectly into shared memory
+    /// calculate the map putting it directly into shared memory
     sizeOfMap = GRAYLEVELS * sizeof(uint8_t);
     eMap = coprthr_dmalloc(dd, sizeOfMap, 0);
     uint8_t * map = (uint8_t*)coprthr_memptr(eMap, 0);
@@ -229,12 +236,14 @@ calcCumFreq:
         map[j] = i;
     }
 
-printf("width: %i, height: %i\ncombined Resutlts ", width, height);
-for(j=0; j< GRAYLEVELS; j++) printf("%u ", combinedResults[j]);
-printf("\ncdf");
-for(j=0; j< GRAYLEVELS; j++) printf("%u ", cdf_image[j]);
-printf("\nmap");
-for(j=0; j< GRAYLEVELS; j++) printf("%u ", map[j]);
+printf("width,%i, height,%i\ncombined Results, ", width, height);
+for(j=0; j< GRAYLEVELS; j++) printf("%u,", combinedResults[j]);
+//printf("\nideal distribution,");
+//for(j=0; j< GRAYLEVELS; j++) printf("%u,", cdf_ideal[j]);
+//printf("\nimage distribution,");
+//for(j=0; j< GRAYLEVELS; j++) printf("%u,", cdf_image[j]);
+//printf("\nmap,");
+//for(j=0; j< GRAYLEVELS; j++) printf("%u,", map[j]);
 printf("\n");
 
 #ifdef TIMEHOST

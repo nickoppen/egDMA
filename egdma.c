@@ -231,20 +231,25 @@ calcCumFreq:
     i = 0;
     for(j=0;j<GRAYLEVELS;j++)
     {
-        while ((cdf_image[j] > cdf_ideal[i]) && (i < 256))
-            i++;
-        map[j] = i;
+        if (i <= 255)
+        {
+            while (cdf_image[j] > cdf_ideal[i])
+                i++;
+            map[j] = i;
+        }
+        else
+            map[j] = 255;
     }
 
-printf("width,%i, height,%i\ncombined Results, ", width, height);
-for(j=0; j< GRAYLEVELS; j++) printf("%u,", combinedResults[j]);
+//printf("width,%i, height,%i\ncombined Results, ", width, height);
+//for(j=0; j< GRAYLEVELS; j++) printf("%u,", combinedResults[j]);
 //printf("\nideal distribution,");
 //for(j=0; j< GRAYLEVELS; j++) printf("%u,", cdf_ideal[j]);
 //printf("\nimage distribution,");
 //for(j=0; j< GRAYLEVELS; j++) printf("%u,", cdf_image[j]);
 //printf("\nmap,");
 //for(j=0; j< GRAYLEVELS; j++) printf("%u,", map[j]);
-printf("\n");
+//printf("\n");
 
 #ifdef TIMEHOST
 

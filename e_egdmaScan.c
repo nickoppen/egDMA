@@ -19,7 +19,7 @@ e_mutex_t mtx;
 void __attribute__((interrupt)) int_isr()
 {
 //    host_printf("Unlocking on: %i \(%u, %u\)\n", coprthr_corenum(), localRow, localCol);
-//    e_mutex_unlock(localRow, localCol, &mtx);
+    e_mutex_unlock(localRow, localCol, &mtx);
 }
 
 void __entry k_scan(scan_args * args)
@@ -107,7 +107,7 @@ void __entry k_scan(scan_args * args)
     e_irq_global_mask(E_FALSE);
 
     e_dma_set_desc(currentChannel,                              /// channel
-                    E_DMA_DWORD | E_DMA_ENABLE | E_DMA_MASTER,// | E_DMA_IRQEN,  /// config
+                    E_DMA_DWORD | E_DMA_ENABLE | E_DMA_MASTER | E_DMA_IRQEN,  /// config
                     0x0,                                        /// next descriptor (there isn't one)
                     8,                                          /// inner stride source (sizeof(DWORD))
                     8,                                          /// inner stride destination
@@ -126,7 +126,7 @@ void __entry k_scan(scan_args * args)
     memcpy(beingTransferred, startLoc, workArea);   /// copy the first block
 
 ///phalt();
-host_printf("Core:%d first 8, last two: %u, %u, %u, %u, %u, %u, %u, %u, %u, %u\n", gid, beingTransferred[0], beingTransferred[1], beingTransferred[2], beingTransferred[3], beingTransferred[4], beingTransferred[5], beingTransferred[6], beingTransferred[7], beingTransferred[workArea - 2], beingTransferred[workArea - 1]);
+//host_printf("Core:%d first 2, last 8: %u, %u, %u, %u, %u, %u, %u, %u, %u, %u\n", gid, beingTransferred[0], beingTransferred[1], beingTransferred[2], beingTransferred[workArea - 7], beingTransferred[workArea - 6], beingTransferred[workArea - 5], beingTransferred[workArea - 4], beingTransferred[workArea - 3], beingTransferred[workArea - 2], beingTransferred[workArea - 1]);
 
     while(workUnits--)
     {
@@ -135,8 +135,8 @@ host_printf("Core:%d first 8, last two: %u, %u, %u, %u, %u, %u, %u, %u, %u, %u\n
         STARTCLOCK1(waitStartTicks);
 #endif // TIMEIT
         /// wait for the current transfer to complete
-        e_dma_wait(currentChannel);                           /// e_dma_wait does not idle - it is a wait loop
-//        e_mutex_lock(localRow, localCol, &mtx);
+//        e_dma_wait(currentChannel);                           /// e_dma_wait does not idle - it is a wait loop
+        e_mutex_lock(localRow, localCol, &mtx);
 //        host_printf("Unlocked on: %i \(%u, %u\)\n", coprthr_corenum(), localRow, localCol);
 
 #ifdef TIMEEPIP
@@ -193,8 +193,8 @@ host_printf("Core:%d first 8, last two: %u, %u, %u, %u, %u, %u, %u, %u, %u, %u\n
         STARTCLOCK1(waitStartTicks);                            /// e_dma_wait does not idle - it is a wait loop
 #endif // TIMEIT
         /// wait for the last transfer to complete
-        e_dma_wait(currentChannel);
-//        e_mutex_lock(localRow, localCol, &mtx);
+//        e_dma_wait(currentChannel);
+        e_mutex_lock(localRow, localCol, &mtx);
 //        host_printf("Unlocked on: %i \(%u, %u\)\n", coprthr_corenum(), localRow, localCol);
 
 #ifdef TIMEEPIP

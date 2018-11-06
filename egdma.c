@@ -241,15 +241,15 @@ calcCumFreq:
             map[j] = 255;
     }
 
-//printf("width,%i, height,%i\ncombined Results, ", width, height);
-//for(j=0; j< GRAYLEVELS; j++) printf("%u,", combinedResults[j]);
-//printf("\nideal distribution,");
-//for(j=0; j< GRAYLEVELS; j++) printf("%u,", cdf_ideal[j]);
-//printf("\nimage distribution,");
-//for(j=0; j< GRAYLEVELS; j++) printf("%u,", cdf_image[j]);
-//printf("\nmap,");
-//for(j=0; j< GRAYLEVELS; j++) printf("%u,", map[j]);
-//printf("\n");
+printf("width,%i, height,%i\ncombined Results, ", width, height);
+for(j=0; j< GRAYLEVELS; j++) printf("%u,", combinedResults[j]);
+printf("\nideal distribution,");
+for(j=0; j< GRAYLEVELS; j++) printf("%u,", cdf_ideal[j]);
+printf("\nimage distribution,");
+for(j=0; j< GRAYLEVELS; j++) printf("%u,", cdf_image[j]);
+printf("\nmap,");
+for(j=0; j< GRAYLEVELS; j++) printf("%u,", map[j]);
+printf("\n");
 
 #ifdef TIMEHOST
 

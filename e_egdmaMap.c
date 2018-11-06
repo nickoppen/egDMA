@@ -73,13 +73,6 @@ void __entry k_map(map_args * args)
 
 ///    read in the map using memcpy (probably faster for a small amount of data)
     memcpy(map, args->g_map, GRAYLEVELS);
-    if(gid == 0)
-//    {
-//        host_printf("map,");
-//        for (i=0; i<GRAYLEVELS; i++)
-//            host_printf("%i,", map[i]);
-//        host_printf("\n");
-//    }
 
     /// Set up the interrupt handler
     e_irq_attach(E_DMA1_INT, int_isr);

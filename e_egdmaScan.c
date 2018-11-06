@@ -7,6 +7,7 @@
 #include "egdma.h"
 
 uint8_t * bebug;
+int testSeq;
 
 #define UseDMA      /// repeated from egdma.h so that the formating in this file works -
 
@@ -18,8 +19,7 @@ e_mutex_t mtx;
 /// The interrupt routine --- will be attached to either E_DMA1_INT or E_DMA2_INT using e_irq_attach()
 void __attribute__((interrupt)) int_isr()
 {
-//    host_printf("Unlocking on: %i \(%u, %u\)\n", coprthr_corenum(), localRow, localCol);
-    e_mutex_unlock(localRow, localCol, &mtx);
+    e_mutex_unlock(localRow, localCol, &mtx);               /// unlock on completion of the DMA transfer
 }
 
 void __entry k_scan(scan_args * args)
@@ -34,6 +34,7 @@ void __entry k_scan(scan_args * args)
     unsigned int grayDistribution[GRAYLEVELS] = { 0 };   /// all elements set to 0
     unsigned int i;
     uint8_t debug;
+    testSeq = 0;    /// testing
 
     e_coreid_t coreId = e_get_coreid();
     e_coords_from_coreid(coreId, &localRow, &localCol);
@@ -76,25 +77,22 @@ void __entry k_scan(scan_args * args)
     if(processingA)
     {
         beingTransferred = A;                                   /// transfer first frame to A ready for processing
-// testing        currentChannel = E_DMA_0;                               /// on E_DMA_0
     }
     else
     {
         beingTransferred = B;
-// testing        currentChannel = E_DMA_1;
     }
 
     if(workUnits)
-        trxCount = workArea / 8;                                /// there are 8 values per DWORD
+        trxCount = workArea / 8;                                /// there are 8 uint8_t values per DWORD
     else
         trxCount = tailEnds / 8;
 
-//host_printf("Core:%d, localSize: %u, workArea: %u, imageSize: %u, band: %u, wornUnits: %u, tailEnds; %u, startLoc: 0x%x, trxCount: %u, 0x%x, A: 0x%x, B:0x%x\n", gid, localSize, workArea, imageSize, band, workUnits, tailEnds, startLoc, trxCount, dmaDesc.count, A, B);
     /// Set up the interrupt handlers
-    if (processingA)  /// testing -- even cores use dma_0 and od cores use dma_1
+    if (processingA)
     {
-        currentChannel = E_DMA_0;
-        e_irq_attach(E_DMA0_INT, int_isr);
+        currentChannel = E_DMA_0;                                /// even cores use dma_0 and odd cores use dma_1
+        e_irq_attach(E_DMA0_INT, int_isr);                      /// set up the DMA interupt to match the channel being used by the core
         e_irq_mask(E_DMA0_INT, E_FALSE);
     }
     else
@@ -119,43 +117,30 @@ void __entry k_scan(scan_args * args)
                     (void*)beingTransferred,                    /// starting location destination
                     &dmaDesc);                                  /// dma descriptor
 
-//bebug = beingTransferred;
-//    e_dma_start(&dmaDesc, currentChannel);
-//phalt();
-//    bebug = beingTransferred;
-    memcpy(beingTransferred, startLoc, workArea);   /// copy the first block
-
-///phalt();
-//host_printf("Core:%d first 2, last 8: %u, %u, %u, %u, %u, %u, %u, %u, %u, %u\n", gid, beingTransferred[0], beingTransferred[1], beingTransferred[2], beingTransferred[workArea - 7], beingTransferred[workArea - 6], beingTransferred[workArea - 5], beingTransferred[workArea - 4], beingTransferred[workArea - 3], beingTransferred[workArea - 2], beingTransferred[workArea - 1]);
+      e_mutex_lock(localRow, localCol, &mtx);                   /// first lock to ensure that the second all to lock blocks until the unlock is called
+      e_dma_start(&dmaDesc, currentChannel);
 
     while(workUnits--)
     {
-//host_printf("Core:%d, iteration: %u, startLoc: 0x%x, src: 0x%x, dst: 0x%x\n", gid, workUnits+1, startLoc, dmaDesc.src_addr, dmaDesc.dst_addr);
 #ifdef TIMEEPIP
         STARTCLOCK1(waitStartTicks);
 #endif // TIMEIT
         /// wait for the current transfer to complete
-//        e_dma_wait(currentChannel);                           /// e_dma_wait does not idle - it is a wait loop
-        e_mutex_lock(localRow, localCol, &mtx);
-//        host_printf("Unlocked on: %i \(%u, %u\)\n", coprthr_corenum(), localRow, localCol);
+        e_mutex_lock(localRow, localCol, &mtx);                 /// wait till the current dma transfer has completed
 
 #ifdef TIMEEPIP
         STOPCLOCK1(waitStopTicks);
         totalWaitTicks += (waitStartTicks - waitStopTicks);
 #endif // TIMEIT
-//bebug = beingTransferred;
-//phalt();
 
         if(processingA)
         {
             beingTransferred = B;                               /// transfer next frame to B
-// testing            currentChannel = E_DMA_1;                           /// on E_DMA_1
             beingProcessed = A;
         }
         else
         {
             beingTransferred = A;
-// testing            currentChannel = E_DMA_0;
             beingProcessed = B;
         }
 
@@ -177,25 +162,18 @@ void __entry k_scan(scan_args * args)
         for(i=0; i<workArea; i++)                               /// only the last frame will have tailEndInts to process and that is done below
         {
             ++grayDistribution[beingProcessed[i]];
-//            if (gid == 3 )
-//                host_printf("%i ", beingProcessed[i]);
         }
-//            if (gid == 3 )
-//                host_printf("\n ");
         ///
         ///=======================================================
 
         processingA = !processingA;                             /// swap buffers and channels
     }
-//host_printf("Core:%d, tailends: %u\n", gid, tailEnds);
 
 #ifdef TIMEEPIP
         STARTCLOCK1(waitStartTicks);                            /// e_dma_wait does not idle - it is a wait loop
 #endif // TIMEIT
         /// wait for the last transfer to complete
-//        e_dma_wait(currentChannel);
         e_mutex_lock(localRow, localCol, &mtx);
-//        host_printf("Unlocked on: %i \(%u, %u\)\n", coprthr_corenum(), localRow, localCol);
 
 #ifdef TIMEEPIP
         STOPCLOCK1(waitStopTicks);
